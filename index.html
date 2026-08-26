@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4A7FA5">
+<title>發票管理系統</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  /* ── Morandi Blue 莫蘭迪藍色系 ── */
+  --bg:#EEF1F5;--sf:#F6F8FB;--sf2:#E8EDF4;--sf3:#DDE4EE;
+  --bd:#C8D2DF;--bd2:#B0BDCE;
+  --tx:#1E2A38;--tx2:#4A5D72;--tx3:#8A9AAD;
+  --blue:#4A7FA5;--bbg:#D8EAF5;--btx:#1E5478;
+  --green:#5A8C6A;--gbg:#D8EDE0;--gtx:#1E5430;
+  --amber:#8C7040;--abg:#F0E8D4;--atx:#5C4420;
+  --red:#8C4A4A;--rbg:#F0DEDE;--rtx:#5C1E1E;
+  --purple:#5A6A9C;--pbg:#DCE0F4;--ptx:#2A3A6C;
+  --accent:#4A7FA5;
+  --r:8px;--rl:12px;
+}
+html{height:100%}
+body{font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;background:var(--bg);color:var(--tx);font-size:13px;height:100vh;overflow:hidden}
+
+/* ── Login ── */
+.ls{position:fixed;inset:0;background:linear-gradient(135deg,#4A7FA5 0%,#6A9FC5 100%);z-index:1000;display:flex;align-items:center;justify-content:center}
+.lb{background:rgba(255,255,255,.14);border:1.5px solid rgba(255,255,255,.32);border-radius:var(--rl);padding:40px 44px;width:340px;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.18)}
+.lb-icon{width:56px;height:56px;border-radius:14px;background:rgba(255,255,255,.2);margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:28px}
+.lb h1{font-size:16px;font-weight:700;margin-bottom:5px;color:#fff}
+.lb p{font-size:12px;color:rgba(255,255,255,.72);margin-bottom:22px;line-height:1.6}
+.lb button{width:100%;padding:11px;border-radius:var(--r);background:rgba(255,255,255,.2);color:#fff;border:1.5px solid rgba(255,255,255,.38);font-size:14px;font-weight:600;cursor:pointer;transition:background .15s;letter-spacing:.05em}
+.lb button:hover{background:rgba(255,255,255,.3)}
+.lerr{color:#FFD0D0;font-size:12px;margin-top:10px;min-height:16px}
+.pw-dot{display:inline-block;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.28);transition:background .15s}
+.pw-dot.filled{background:#fff}
+
+/* ── Topbar ── */
+.topbar{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 14px;display:flex;align-items:center;height:50px;position:sticky;top:0;z-index:60;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.brand{font-size:13px;font-weight:700;padding-right:14px;border-right:1px solid var(--bd);margin-right:8px;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.brand-icon{width:26px;height:26px;border-radius:7px;background:var(--bbg);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.brand small{font-size:10px;background:var(--bbg);color:var(--btx);padding:2px 6px;border-radius:20px;margin-left:4px;font-weight:500}
+.tabs{display:flex;flex:1;overflow-x:auto}
+.tab{padding:0 13px;height:50px;display:flex;align-items:center;font-size:12px;cursor:pointer;border-bottom:2px solid transparent;color:var(--tx2);background:none;border-top:none;border-left:none;border-right:none;transition:all .15s;white-space:nowrap;font-family:inherit}
+.tab:hover{color:var(--tx);background:var(--sf2)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tb-right{display:flex;gap:4px;align-items:center;margin-left:auto;flex-shrink:0}
+
+/* ── Buttons ── */
+.btn{padding:5px 10px;border-radius:var(--r);font-size:11px;cursor:pointer;border:1px solid var(--bd);background:var(--sf);color:var(--tx);transition:all .15s;white-space:nowrap;font-family:inherit;display:inline-flex;align-items:center;gap:3px;min-height:28px}
+.btn:hover{background:var(--sf2);border-color:var(--bd2)}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary:hover{background:#3A6080}
+.btn.success{background:var(--gbg);color:var(--gtx);border-color:#9ccf6a}
+.btn.danger{background:var(--rbg);color:var(--rtx);border-color:#d4a4a4}
+.btn.danger:hover{background:#e8caca}
+.btn.warn{background:var(--abg);color:var(--atx);border-color:#c8a060}
+.btn.sm{padding:3px 8px;font-size:11px}
+.btn.xs{padding:2px 6px;font-size:10px}
+
+/* ── Toolbar ── */
+.toolbar{background:var(--sf);border-bottom:1px solid var(--bd);padding:7px 14px;display:flex;gap:5px;align-items:center;flex-wrap:wrap;flex-shrink:0}
+.toolbar input,.toolbar select{font-size:11px;padding:3px 6px;border-radius:var(--r);border:1px solid var(--bd);background:var(--sf2);color:var(--tx);height:26px;font-family:inherit}
+.toolbar input{min-width:160px}
+.toolbar input:focus,.toolbar select:focus{outline:none;border-color:var(--blue)}
+.spacer{flex:1}
+
+/* ── Tab layout ── */
+[id^="tab-"]{display:none;flex-direction:column;overflow:hidden}
+[id^="tab-"].active{display:flex;flex-direction:column;height:calc(100vh - 50px);overflow:hidden}
+.content{flex:1;overflow-y:auto;padding:11px 14px}
+
+/* ── Metrics ── */
+.sg{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px;margin-bottom:11px}
+.metric{background:var(--sf);border:1px solid var(--bd);border-radius:var(--rl);padding:9px 12px}
+.mlbl{font-size:9px;color:var(--tx3);margin-bottom:2px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
+.mval{font-size:17px;font-weight:700}
+
+/* ── Table ── */
+.twrap{background:var(--sf);border:1px solid var(--bd);border-radius:var(--rl);overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead th{padding:6px 7px;text-align:left;font-size:10px;font-weight:700;color:var(--tx2);background:var(--sf2);border-bottom:1px solid var(--bd);white-space:nowrap;position:sticky;top:0;z-index:2;letter-spacing:.03em}
+tbody tr{border-bottom:1px solid var(--bd)}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:#edf2f8}
+tbody td{padding:5px 7px;vertical-align:middle}
+.ac{display:flex;gap:3px}
+.mono{font-family:'Courier New',Courier,monospace;font-size:11px;letter-spacing:.03em}
+.badge{display:inline-block;padding:2px 6px;border-radius:20px;font-size:10px;font-weight:600;white-space:nowrap}
+.b-done{background:var(--gbg);color:var(--gtx)}
+.b-pend{background:var(--abg);color:var(--atx)}
+.b-tax{background:var(--sf2);color:var(--tx2)}
+.b-cur-tw{background:var(--bbg);color:var(--btx)}
+.b-cur-fx{background:var(--pbg);color:var(--ptx)}
+.po-list{display:flex;flex-wrap:wrap;gap:3px}
+.po-chip{background:var(--pbg);color:var(--ptx);border-radius:20px;padding:1px 6px;font-size:10px;font-weight:600;white-space:nowrap}
+.finish-inp{font-size:11px;padding:2px 5px;border:1px solid var(--bd);border-radius:5px;background:var(--sf2);color:var(--tx);font-family:inherit;width:112px}
+.finish-inp:focus{outline:none;border-color:var(--blue)}
+
+/* ── Detail Panel (centered, like desktop.html) ── */
+.detov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:80;overflow-y:auto}
+.detov.open{display:block}
+.detpanel{background:var(--sf);min-height:100vh;max-width:860px;margin:0 auto}
+.dethd{display:flex;align-items:center;gap:8px;padding:9px 14px;border-bottom:1px solid var(--bd);position:sticky;top:0;z-index:10;background:var(--sf);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.dethd h2{font-size:14px;font-weight:700;flex:1}
+.detback{cursor:pointer;font-size:21px;color:var(--tx2);background:none;border:none;line-height:1;padding:0 3px}
+.detbody{padding:15px 18px 50px}
+.sechd{font-size:10px;font-weight:700;color:var(--tx2);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--bd);text-transform:uppercase;letter-spacing:.07em}
+
+/* ── Form fields ── */
+.fgg{display:grid;gap:8px;margin-bottom:10px}
+.c2{grid-template-columns:1fr 1fr}
+.c3{grid-template-columns:1fr 1fr 1fr}
+.c4{grid-template-columns:1fr 1fr 1fr 1fr}
+.full{grid-column:1/-1}
+.fg{display:flex;flex-direction:column;gap:3px}
+.fg label{font-size:10px;color:var(--tx2);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.fg input,.fg select{font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:inherit;transition:border-color .15s;width:100%}
+.fg input:focus,.fg select:focus{outline:none;border-color:var(--blue);background:var(--sf)}
+.vauto{font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf3);min-height:31px;display:flex;align-items:center;color:var(--gtx);font-weight:700}
+.vauto.empty{color:var(--tx3);font-weight:400}
+.calc-hint{font-size:10px;color:var(--blue);margin-top:3px;min-height:14px;line-height:1.6}
+.rg{display:flex;gap:4px;flex-wrap:wrap}
+.rb{padding:3px 10px;border-radius:20px;border:1px solid var(--bd);background:var(--sf2);color:var(--tx2);cursor:pointer;font-size:11px;font-family:inherit;transition:all .15s;user-select:none}
+.rb:hover{border-color:var(--bd2);color:var(--tx)}
+.rb.on{background:var(--bbg);border-color:#7db8e8;color:var(--btx);font-weight:600}
+.po-wrap{border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);padding:4px 7px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;cursor:text;min-height:31px;transition:border-color .15s}
+.po-wrap:focus-within{border-color:var(--blue);background:var(--sf)}
+.po-tag{background:var(--pbg);color:var(--ptx);border-radius:20px;padding:1px 8px;font-size:10px;font-weight:600;display:flex;align-items:center;gap:3px;white-space:nowrap}
+.po-tag .rx{cursor:pointer;opacity:.6;line-height:1}
+.po-tag .rx:hover{opacity:1;color:var(--rtx)}
+.po-input{border:none;background:transparent;font-family:'Courier New',Courier,monospace;font-size:11px;color:var(--tx);outline:none;min-width:110px;flex:1;padding:1px 2px}
+
+/* ── Vendor list ── */
+.vm-row{background:var(--sf2);border:1px solid var(--bd);border-radius:var(--r);padding:8px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .15s;margin-bottom:5px}
+.vm-row:hover{border-color:var(--bd2);background:var(--sf)}
+.vm-code{background:var(--bbg);color:var(--btx);border-radius:5px;padding:2px 8px;font-family:'Courier New',monospace;font-size:11px;font-weight:700;flex-shrink:0;min-width:52px;text-align:center}
+.vm-name{font-size:12px;font-weight:600;flex:1}
+.vm-meta{font-size:10px;color:var(--tx3);white-space:nowrap}
+
+/* ── Modals ── */
+.mkov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center}
+.mkov.open{display:flex}
+.mk{background:var(--sf);border-radius:var(--rl);border:1px solid var(--bd);width:520px;max-height:84vh;overflow-y:auto;padding:19px;box-shadow:0 8px 40px rgba(0,0,0,.2)}
+.mk h3{font-size:14px;font-weight:700;margin-bottom:11px;display:flex;align-items:center;justify-content:space-between}
+.mk h3 button{font-size:20px;background:none;border:none;cursor:pointer;color:var(--tx3)}
+.mkft{display:flex;gap:6px;justify-content:flex-end;padding-top:10px;border-top:1px solid var(--bd);margin-top:10px}
+.hol-list{display:flex;flex-direction:column;gap:2px;max-height:300px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--r);padding:5px;margin-bottom:10px}
+.hol-row{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:5px}
+.hol-row:hover{background:var(--sf2)}
+.hol-date{font-family:'Courier New',monospace;font-size:11px;font-weight:700;color:var(--blue);flex-shrink:0;width:86px}
+.hol-name{font-size:11px;flex:1;color:var(--tx2)}
+.hol-del{font-size:11px;cursor:pointer;color:var(--tx3);padding:2px 6px;border:1px solid var(--bd);background:none;border-radius:4px;font-family:inherit}
+.hol-del:hover{background:var(--rbg);color:var(--rtx)}
+
+/* ── Pagination ── */
+.pgbar{display:flex;align-items:center;gap:4px;padding:8px 10px;border-top:1px solid var(--bd);flex-shrink:0}
+.pgbtn{padding:3px 9px;border:1px solid var(--bd);border-radius:5px;background:var(--sf2);color:var(--tx2);font-size:11px;cursor:pointer;font-family:inherit;transition:all .15s}
+.pgbtn:hover{border-color:var(--bd2);color:var(--tx)}
+.pgbtn.on{background:var(--bbg);border-color:#7db8e8;color:var(--btx);font-weight:700}
+.pgbtn:disabled{opacity:.4;cursor:default}
+.pginfo{font-size:11px;color:var(--tx3);margin-left:auto}
+
+/* ── Toast & Loading ── */
+.ntf{position:fixed;bottom:18px;right:18px;background:var(--tx);color:#fff;padding:8px 16px;border-radius:var(--r);font-size:12px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+.ntf.show{opacity:1}
+#loadingOv{display:none;position:fixed;inset:0;background:rgba(238,241,245,.78);z-index:300;align-items:center;justify-content:center;flex-direction:column;gap:10px}
+#loadingOv.on{display:flex}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:32px;height:32px;border:3px solid var(--bd);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN SCREEN ══ -->
+<div class="ls" id="ls">
+  <div class="lb">
+    <div class="lb-icon">📋</div>
+    <h1>發票管理系統</h1>
+    <p>請輸入密碼以繼續</p>
+    <!-- 真實密碼輸入框（隱藏，承載實際輸入） -->
+    <input type="password" id="pwInput" maxlength="20"
+      style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px"
+      onkeydown="if(event.key==='Enter')doLogin()" oninput="_updatePwDots()">
+    <!-- 視覺：4 個固定圓點 -->
+    <div id="pwDotsBox" onclick="document.getElementById('pwInput').focus()"
+      style="display:flex;justify-content:center;gap:18px;padding:20px 16px;background:rgba(255,255,255,.14);
+             border-radius:12px;cursor:text;margin:8px 0;width:100%">
+      <span class="pw-dot" id="pwDot0"></span>
+      <span class="pw-dot" id="pwDot1"></span>
+      <span class="pw-dot" id="pwDot2"></span>
+      <span class="pw-dot" id="pwDot3"></span>
+    </div>
+    <button onclick="doLogin()">登　入</button>
+    <div class="lerr" id="lerr"></div>
+  </div>
+</div>
+
+<!-- ══ TOPBAR ══ -->
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-icon">📋</div>
+    發票管理系統 <small>Invoice</small>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="sw('list',this)">發票列表</button>
+    <button class="tab" onclick="sw('add',this)">＋ 新增</button>
+    <button class="tab" onclick="sw('vendors',this)">廠商資料維護</button>
+  </div>
+  <div class="tb-right">
+    <span id="hdr-count" style="font-size:11px;color:var(--tx3);margin-right:2px"></span>
+    <button class="btn sm warn" onclick="openHolModal()">📅 國定假日</button>
+    <button class="btn sm" onclick="exportCSV()">⬇ CSV</button>
+    <button class="btn sm" onclick="openBackup()">☁️ 雲端備份</button>
+    <button class="btn sm" onclick="manualBackupLocal()">💾 備份</button>
+    <label class="btn sm" style="cursor:pointer" title="還原本機備份">↑ 還原<input type="file" accept=".json" style="display:none" onchange="restoreLocalBackup(event)"></label>
+  </div>
+</div>
+
+<!-- ══ LIST TAB ══ -->
+<div id="tab-list" class="active">
+  <div class="toolbar">
+    <input type="text" id="s-text" placeholder="🔍 搜尋廠商、發票號碼、PO#…" oninput="renderTable()">
+    <select id="s-finish" onchange="renderTable()">
+      <option value="">全部狀態</option>
+      <option value="done">已驗收</option>
+      <option value="pend">待驗收</option>
+    </select>
+    <div class="spacer"></div>
+  </div>
+  <div class="content">
+    <div class="sg">
+      <div class="metric"><div class="mlbl">總筆數</div><div class="mval" id="m-total">0</div></div>
+      <div class="metric"><div class="mlbl">已驗收</div><div class="mval" id="m-done" style="color:var(--green)">0</div></div>
+      <div class="metric"><div class="mlbl">待驗收</div><div class="mval" id="m-pend" style="color:var(--amber)">0</div></div>
+    </div>
+    <div class="twrap">
+      <table>
+        <thead>
+          <tr>
+            <th>廠商</th><th>代碼</th><th>發票日期</th><th>稅別</th><th>幣別</th>
+            <th>發票號碼</th><th>PO#</th>
+            <th>完成日（驗收日）</th><th>預計付款日</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-body"></tbody>
+      </table>
+      <div class="pgbar" id="pgbar"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ADD / EDIT TAB ══ -->
+<div id="tab-add">
+  <div class="content">
+    <div style="background:var(--sf);border:1px solid var(--bd);border-radius:var(--rl);padding:16px 18px;max-width:1290px">
+      <div class="sechd" id="form-title">新增發票</div>
+
+      <!-- Row 1: 代碼(120px) | 廠商名稱 | 付款時間 -->
+      <div class="fgg" style="grid-template-columns:120px 1fr 150px">
+        <div class="fg">
+          <label>代碼 Code <span style="color:var(--red)">*</span></label>
+          <input type="text" id="f-code" placeholder="DE06" maxlength="6"
+            oninput="this.value=this.value.toUpperCase();lookupVendor(true)"
+            style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;letter-spacing:.08em">
+        </div>
+        <div class="fg">
+          <label>廠商名稱</label>
+          <div class="vauto empty" id="f-vd">— 自動帶入 —</div>
+        </div>
+        <div class="fg">
+          <label>付款時間（天）</label>
+          <input type="number" id="f-paydays" min="0" placeholder="30" oninput="calcPayDate()">
+        </div>
+      </div>
+
+      <!-- Row 2: 發票日期 | 發票號碼 | PO# -->
+      <div class="fgg c3">
+        <div class="fg">
+          <label>發票日期 <span style="color:var(--red)">*</span></label>
+          <input type="date" id="f-date">
+        </div>
+        <div class="fg">
+          <label>發票號碼 Invoice#</label>
+          <input type="text" id="f-invoice" placeholder="YY05184726" style="font-family:'Courier New',monospace">
+        </div>
+        <div class="fg">
+          <label>PO# <span style="font-size:9px;color:var(--tx3);text-transform:none;font-weight:400">(Enter 或逗號新增多筆)</span></label>
+          <div class="po-wrap" id="po-wrap" onclick="document.getElementById('po-inp').focus()">
+            <input class="po-input" id="po-inp" placeholder="LMTL-613059" onkeydown="poKey(event)" oninput="poComma(event)">
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: 稅別 | 幣別 | 2聯財務 | 特殊 -->
+      <div class="fgg c4">
+        <div class="fg">
+          <label>稅別</label>
+          <select id="f-tax">
+            <option value="">— 請選擇 —</option>
+            <option value="應稅">應稅</option>
+            <option value="零稅">零稅</option>
+            <option value="免稅">免稅</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>幣別</label>
+          <select id="f-currency" onchange="calcPayDate()">
+            <option value="">— 請選擇 —</option>
+            <option value="台幣">台幣</option>
+            <option value="外幣">外幣</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>2聯財務</label>
+          <div class="rg" id="rg-fin">
+            <span class="rb on" onclick="rg('rg-fin',this)">— 無</span>
+            <span class="rb" onclick="rg('rg-fin',this)">✓ 已送</span>
+            <span class="rb" onclick="rg('rg-fin',this)">✗ 未送</span>
+          </div>
+        </div>
+        <div class="fg">
+          <label>特殊 Sp.</label>
+          <input type="text" id="f-sp" placeholder="特殊說明">
+        </div>
+      </div>
+
+      <!-- Row 4: 備註 -->
+      <div class="fgg" style="grid-template-columns:1fr">
+        <div class="fg">
+          <label>備註 Remark</label>
+          <input type="text" id="f-remark" placeholder="備註說明">
+        </div>
+      </div>
+
+      <!-- Row 5: 完成日 | 預計付款日 -->
+      <div class="fgg c2" style="margin-bottom:4px">
+        <div class="fg">
+          <label>完成日（驗收日）</label>
+          <input type="date" id="f-finish" onchange="calcPayDate()">
+          <div class="calc-hint" id="calc-hint"></div>
+        </div>
+        <div class="fg">
+          <label>預計付款日</label>
+          <input type="date" id="f-paydate">
+        </div>
+      </div>
+
+      <div style="display:flex;gap:6px;justify-content:flex-end;padding-top:10px;border-top:1px solid var(--bd)">
+        <button class="btn" onclick="clearForm()">清除</button>
+        <button class="btn primary" id="submit-btn" onclick="submitForm()">儲存發票</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ VENDORS TAB ══ -->
+<div id="tab-vendors">
+  <div class="toolbar">
+    <input type="text" id="vm-search" placeholder="🔍 搜尋廠商代碼或名稱…" oninput="renderVendors()">
+    <div class="spacer"></div>
+    <button class="btn primary sm" onclick="openVendorEdit(null)">＋ 新增廠商</button>
+  </div>
+  <div class="content">
+    <div id="vm-list"></div>
+  </div>
+</div>
+
+<!-- ══ VENDOR EDIT PANEL (centered detpanel) ══ -->
+<div class="detov" id="vendor-ov">
+  <div class="detpanel" style="max-width:680px">
+    <div class="dethd">
+      <button class="detback" onclick="closeVendorEdit()">←</button>
+      <h2 id="vp-title">廠商資料</h2>
+      <button class="btn primary sm" onclick="saveVendorPanel()">✓ 儲存</button>
+    </div>
+    <div class="detbody">
+      <div class="sechd">廠商基本資料</div>
+      <div class="fgg c2" style="margin-bottom:10px">
+        <div class="fg">
+          <label>代碼</label>
+          <input type="text" id="vp-code" maxlength="6"
+            style="font-family:'Courier New',monospace;font-weight:700;text-transform:uppercase;font-size:13px;letter-spacing:.06em"
+            oninput="this.value=this.value.toUpperCase()">
+        </div>
+        <div class="fg">
+          <label>廠商名稱</label>
+          <input type="text" id="vp-name" placeholder="廠商名稱">
+        </div>
+      </div>
+      <div class="fgg c3" style="margin-bottom:24px">
+        <div class="fg">
+          <label>稅別</label>
+          <select id="vp-tax">
+            <option value="">— 請選擇 —</option>
+            <option value="應稅">應稅</option>
+            <option value="零稅">零稅</option>
+            <option value="免稅">免稅</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label>付款時間（天）</label>
+          <input type="number" id="vp-paydays" min="0" placeholder="30">
+        </div>
+        <div class="fg">
+          <label>幣別</label>
+          <select id="vp-currency">
+            <option value="">— 請選擇 —</option>
+            <option value="台幣">台幣</option>
+            <option value="外幣">外幣</option>
+          </select>
+        </div>
+      </div>
+      <button id="vp-del-btn" class="btn danger sm" onclick="deleteVendorFromPanel()" style="display:none">🗑 刪除此廠商</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ HOLIDAY MODAL ══ -->
+<div class="mkov" id="hol-modal">
+  <div class="mk">
+    <h3>📅 國定假日管理 <button onclick="closeHolModal()">✕</button></h3>
+    <p style="font-size:11px;color:var(--tx3);margin-bottom:12px">六日已自動排除，此處管理國定假日（含補假）。用於台幣預計付款日計算。</p>
+    <div style="display:flex;gap:6px;margin-bottom:12px;align-items:flex-end">
+      <div class="fg" style="flex:0 0 140px">
+        <label>日期</label>
+        <input type="date" id="hol-new-date"
+          style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:inherit;width:100%">
+      </div>
+      <div class="fg" style="flex:1">
+        <label>假日名稱</label>
+        <input type="text" id="hol-new-name" placeholder="例：中秋節"
+          style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:inherit;width:100%">
+      </div>
+      <button class="btn primary sm" style="flex-shrink:0" onclick="addHoliday()">新增</button>
+    </div>
+    <div style="font-size:10px;font-weight:700;color:var(--tx3);margin-bottom:5px;text-transform:uppercase">
+      假日清單（<span id="hol-count">0</span> 筆）
+    </div>
+    <div class="hol-list" id="hol-list"></div>
+    <div class="mkft">
+      <button class="btn" onclick="closeHolModal()">取消</button>
+      <button class="btn primary" onclick="saveHolidaysCloud();closeHolModal()">✓ 儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ BACKUP MODAL ══ -->
+<div class="mkov" id="backup-modal">
+  <div class="mk">
+    <h3>☁️ 雲端備份與還原 <button onclick="closeBackup()">✕</button></h3>
+    <p style="font-size:11px;color:var(--tx2);margin-bottom:10px">
+      系統每天午夜過後會自動檢查前一天是否有異動，有的話就自動備份一次（存放於指定的 Google 雲端硬碟資料夾）。
+      這裡也可以立即手動備份，或選擇一份備份還原回目前系統（此動作無法復原）。
+    </p>
+    <button class="btn primary sm" onclick="runManualBackup()" id="backupNowBtn" style="margin-bottom:14px">💾 立即備份</button>
+    <div style="border-top:1px solid var(--bd);padding-top:12px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:6px;color:var(--tx)">還原備份</div>
+      <select id="backupSelect" style="width:100%;font-size:12px;padding:6px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);margin-bottom:8px">
+        <option value="">讀取備份清單中…</option>
+      </select>
+      <button class="btn danger sm" onclick="runRestoreBackup()" id="backupRestoreBtn">還原此備份</button>
+    </div>
+    <div class="mkft"><button class="btn" onclick="closeBackup()">關閉</button></div>
+  </div>
+</div>
+
+<div class="ntf" id="ntf"></div>
+<div id="loadingOv">
+  <div class="spinner"></div>
+  <div style="font-size:12px;color:var(--tx2)">同步中...</div>
+</div>
+
+<script>
+// ══ CONFIG ════════════════════════════════════════
+// !! 部署後請將下方替換為你的 Google Apps Script Web App 網址 !!
+const API_URL = 'YOUR_APPS_SCRIPT_URL_HERE';
+
+// ══ AUTH ══════════════════════════════════════════
+const SESSION_KEY  = 'inv_auth_v1';
+const SESSION_TTL  = 4 * 60 * 60 * 1000; // 4 小時
+let _TOKEN         = sessionStorage.getItem('inv_token') || '';
+let _expiryHandled = false;
+let _heartbeatTimer = null;
+let _backupsCache  = null;
+
+function _updatePwDots(){
+  const len = document.getElementById('pwInput').value.length;
+  for(let i=0;i<4;i++){
+    const d = document.getElementById('pwDot'+i);
+    if(d) d.classList.toggle('filled', len>0); // 有輸入就全亮
+  }
+}
+
+async function doLogin(){
+  const input = document.getElementById('pwInput');
+  const err   = document.getElementById('lerr');
+  const pw    = input.value.trim();
+  if(!pw) return;
+  err.textContent = '驗證中...';
+  input.disabled = true;
+  try {
+    const res  = await fetch(API_URL, { method:'POST', body: JSON.stringify({ action:'checkPw', pw }) });
+    const json = await res.json();
+    if(json.ok){
+      _TOKEN = json.token;
+      sessionStorage.setItem(SESSION_KEY, '1');
+      sessionStorage.setItem('inv_token', _TOKEN);
+      sessionStorage.setItem('inv_login_time', String(Date.now()));
+      _startHeartbeat();
+      document.getElementById('ls').style.display = 'none';
+      startApp();
+    } else {
+      err.textContent = json.error || '密碼錯誤，請重試';
+      input.value = ''; _updatePwDots(); input.focus();
+      setTimeout(() => err.textContent = '', 3500);
+    }
+  } catch(e) {
+    err.textContent = '連線失敗，請確認網路';
+    setTimeout(() => err.textContent = '', 3500);
+  } finally {
+    input.disabled = false;
+  }
+}
+
+function checkAuth(){ return !!_TOKEN && sessionStorage.getItem(SESSION_KEY) === '1'; }
+
+function _handleExpiry(){
+  if(_expiryHandled) return; _expiryHandled = true;
+  _stopHeartbeat(); _TOKEN = '';
+  sessionStorage.removeItem(SESSION_KEY);
+  sessionStorage.removeItem('inv_token');
+  sessionStorage.removeItem('inv_login_time');
+  const ls = document.getElementById('ls');
+  if(ls) ls.style.cssText = 'display:flex!important';
+  const err = document.getElementById('lerr');
+  if(err) err.textContent = '登入已過期，請重新登入';
+  setTimeout(() => {
+    const pw = document.getElementById('pwInput');
+    if(pw){ pw.value = ''; _updatePwDots(); pw.focus(); }
+    _expiryHandled = false;
+  }, 100);
+}
+
+function _startHeartbeat(){
+  _stopHeartbeat();
+  _heartbeatTimer = setInterval(() => {
+    const t = Number(sessionStorage.getItem('inv_login_time') || 0);
+    if(t && Date.now() - t >= SESSION_TTL) _handleExpiry();
+  }, 60000);
+  document.addEventListener('visibilitychange', _onVis);
+}
+function _stopHeartbeat(){
+  if(_heartbeatTimer){ clearInterval(_heartbeatTimer); _heartbeatTimer = null; }
+  document.removeEventListener('visibilitychange', _onVis);
+}
+function _onVis(){
+  if(document.visibilityState === 'visible'){
+    const t = Number(sessionStorage.getItem('inv_login_time') || 0);
+    if(t && Date.now() - t >= SESSION_TTL) _handleExpiry();
+  }
+}
+
+// keyboard adjustment for mobile login
+(function(){
+  if(!window.visualViewport) return;
+  function adj(){
+    const ls = document.getElementById('ls'); if(!ls) return;
+    const gap = window.innerHeight - window.visualViewport.height;
+    ls.style.height = gap > 100 ? window.visualViewport.height + 'px' : '';
+  }
+  window.visualViewport.addEventListener('resize', adj);
+  window.visualViewport.addEventListener('scroll', adj);
+  const pw = document.getElementById('pwInput');
+  if(pw){
+    pw.addEventListener('focus', () => setTimeout(adj, 50));
+    pw.addEventListener('blur', () => { const ls=document.getElementById('ls'); if(ls) ls.style.height=''; });
+  }
+})();
+
+// ══ API ═══════════════════════════════════════════
+async function apiGet(action){
+  const tok = _TOKEN;
+  const res = await fetch(`${API_URL}?action=${encodeURIComponent(action)}&token=${encodeURIComponent(tok)}`);
+  const json = await res.json();
+  if(json.code === 'INVALID_TOKEN'){ if(tok===_TOKEN) _handleExpiry(); throw new Error('請重新登入'); }
+  if(!json.ok) throw new Error(json.error || 'API error');
+  return json.data;
+}
+async function apiPost(action, payload){
+  const tok = _TOKEN;
+  const res = await fetch(API_URL, { method:'POST', body: JSON.stringify({ action, payload, token: tok }) });
+  const json = await res.json();
+  if(json.code === 'INVALID_TOKEN'){ if(tok===_TOKEN) _handleExpiry(); throw new Error('請重新登入'); }
+  if(!json.ok) throw new Error(json.error || 'API error');
+  return json.data;
+}
+
+// ══ LOCAL CACHE ═══════════════════════════════════
+function lSave(k,v){ try{ localStorage.setItem('inv_'+k, JSON.stringify(v)); }catch(e){} }
+function lRead(k){ try{ const s=localStorage.getItem('inv_'+k); return s?JSON.parse(s):null; }catch(e){ return null; } }
+
+// ══ STATE ═════════════════════════════════════════
+let invoices = [], vendors = [], holidays = [];
+let holSet = new Set();
+let editId = null, poTags = [], curPage = 1, vpEditCode = null;
+const PS = 25;
+
+const DEF_V = [
+  {code:'VE07',name:'格瑞',tax:'',paydays:'',currency:''},{code:'DH09',name:'大驤五金',tax:'',paydays:'',currency:''},
+  {code:'EHI8',name:'鑑寬五金',tax:'',paydays:'',currency:''},{code:'7E06',name:'全華精密',tax:'',paydays:'',currency:''},
+  {code:'VSII',name:'光正',tax:'',paydays:'',currency:''},{code:'8O02',name:'安遠',tax:'',paydays:'',currency:''},
+  {code:'ZS05',name:'榮利',tax:'',paydays:'',currency:''},{code:'BS06',name:'北海',tax:'',paydays:'',currency:''},
+  {code:'4S2I',name:'聖佑',tax:'',paydays:'',currency:''},{code:'CE0I',name:'鑫力工業',tax:'',paydays:'',currency:''},
+  {code:'7SI0',name:'慶鴻儀器',tax:'',paydays:'',currency:''},{code:'VMII',name:'冠鋸精密',tax:'',paydays:'',currency:''},
+  {code:'GO57',name:'煥聖',tax:'',paydays:'',currency:''},{code:'7S27',name:'泉能',tax:'',paydays:'',currency:''},
+  {code:'3SII',name:'崇曜',tax:'',paydays:'',currency:''},{code:'ME04',name:'敏盛',tax:'',paydays:'',currency:''},
+  {code:'7EI0',name:'全閎精密',tax:'',paydays:'',currency:''},{code:'TSI4',name:'基恩斯',tax:'',paydays:'',currency:''},
+  {code:'DE06',name:'單井',tax:'',paydays:'',currency:''},{code:'7S30',name:'奇星',tax:'',paydays:'',currency:''},
+  {code:'ZM07',name:'瑞弘',tax:'',paydays:'',currency:''},{code:'LSI9',name:'羅昇',tax:'',paydays:'',currency:''},
+  {code:'TS49',name:'東和TOWA',tax:'',paydays:'',currency:''},{code:'DS22',name:'大寶島光電',tax:'',paydays:'',currency:''},
+  {code:'CS50',name:'休斯微技',tax:'',paydays:'',currency:''},{code:'SS03',name:'寶密',tax:'',paydays:'',currency:''},
+  {code:'MMI6',name:'默克先進',tax:'',paydays:'',currency:''},{code:'DEI1',name:'迪恩科',tax:'',paydays:'',currency:''},
+  {code:'CS39',name:'旭泰',tax:'',paydays:'',currency:''},{code:'TO7I',name:'騰重',tax:'',paydays:'',currency:''},
+  {code:'XOI9',name:'蔚旻',tax:'',paydays:'',currency:''},{code:'4H05',name:'數益',tax:'',paydays:'',currency:''},
+  {code:'GSI6',name:'巨沛',tax:'',paydays:'',currency:''},{code:'XO20',name:'旺磊',tax:'',paydays:'',currency:''},
+  {code:'VM08',name:'高元',tax:'',paydays:'',currency:''},{code:'XE05',name:'偉勝乾燥',tax:'',paydays:'',currency:''},
+  {code:'CS2I',name:'矽菱',tax:'',paydays:'',currency:''},{code:'HS3I',name:'妹新',tax:'',paydays:'',currency:''},
+];
+
+const DEF_HOL = [
+  {date:'2026-01-01',name:'元旦'},{date:'2026-01-27',name:'春節除夕'},{date:'2026-01-28',name:'春節初一'},
+  {date:'2026-01-29',name:'春節初二'},{date:'2026-01-30',name:'春節初三'},{date:'2026-02-02',name:'春節補假'},
+  {date:'2026-02-27',name:'和平紀念日補假'},{date:'2026-02-28',name:'和平紀念日'},{date:'2026-04-03',name:'兒童節補假'},
+  {date:'2026-04-04',name:'兒童節／清明節'},{date:'2026-05-01',name:'勞動節'},{date:'2026-06-19',name:'端午節'},
+  {date:'2026-10-01',name:'中秋節'},{date:'2026-10-09',name:'國慶日補假'},{date:'2026-10-10',name:'國慶日'},
+  {date:'2027-01-01',name:'元旦'},{date:'2027-02-15',name:'春節除夕'},{date:'2027-02-16',name:'春節初一'},
+  {date:'2027-02-17',name:'春節初二'},{date:'2027-02-18',name:'春節初三'},{date:'2027-02-19',name:'春節初四'},
+  {date:'2027-02-26',name:'和平紀念日補假'},{date:'2027-02-28',name:'和平紀念日'},{date:'2027-04-04',name:'兒童節／清明節'},
+  {date:'2027-05-01',name:'勞動節'},{date:'2027-05-08',name:'端午節'},{date:'2027-09-20',name:'中秋節'},
+  {date:'2027-10-10',name:'國慶日'},{date:'2027-10-11',name:'國慶日補假'},
+];
+
+function buildHolSet(){ holSet = new Set(holidays.map(h => h.date)); }
+function loadFromCache(){
+  invoices = lRead('invoices') || [];
+  vendors  = (lRead('vendors') || DEF_V).map(v => ({tax:'',paydays:'',currency:'',...v}));
+  holidays = lRead('holidays') || [...DEF_HOL];
+  buildHolSet();
+}
+
+// ══ LOAD ══════════════════════════════════════════
+async function fetchAll(){
+  let all;
+  try {
+    all = await apiGet('getAll');
+  } catch(e) {
+    // Try individual calls as fallback
+    const [inv, vnd, hol] = await Promise.all([
+      apiGet('getInvoices'), apiGet('getVendors'), apiGet('getHolidays')
+    ]);
+    all = { invoices: inv, vendors: vnd, holidays: hol };
+  }
+  invoices  = all.invoices  || [];
+  vendors   = (all.vendors  || DEF_V).map(v => ({tax:'',paydays:'',currency:'',...v}));
+  holidays  = all.holidays  || [...DEF_HOL];
+  buildHolSet();
+  lSave('invoices', invoices); lSave('vendors', vendors); lSave('holidays', holidays);
+}
+
+async function load(){
+  const hasCache = !!lRead('invoices');
+  if(hasCache){
+    loadFromCache();
+    fetchAll().then(() => { renderTable(); updateStats(); }).catch(() => ntf('⚠ 無法連線，使用本地快取'));
+    return;
+  }
+  showLoading(true);
+  try { await fetchAll(); } catch(e) { loadFromCache(); ntf('⚠ 離線模式，使用本地快取'); }
+  showLoading(false);
+}
+
+async function startApp(){
+  _expiryHandled = false;
+  if(!_TOKEN || !sessionStorage.getItem(SESSION_KEY)) return;
+  const t = Number(sessionStorage.getItem('inv_login_time') || 0);
+  if(t && Date.now() - t >= SESSION_TTL){ _handleExpiry(); return; }
+  _startHeartbeat();
+  await load();
+  renderTable(); updateStats();
+  _autoBackupCheck();
+}
+
+// ══ AUTO BACKUP ════════════════════════════════════
+const LAST_BK_KEY = 'inv_last_backup';
+async function _autoBackupCheck(){
+  const last  = localStorage.getItem(LAST_BK_KEY);
+  const today = new Date().toISOString().slice(0,10);
+  if(last === today) return;
+  try {
+    await apiPost('backup', { auto: true });
+    localStorage.setItem(LAST_BK_KEY, today);
+  } catch(e) { console.warn('[AutoBackup]', e); }
+}
+
+// ══ SAVE FUNCTIONS ═════════════════════════════════
+async function saveInvoicesCloud(){
+  try { await apiPost('saveInvoices', invoices); lSave('invoices', invoices); }
+  catch(e){ lSave('invoices', invoices); if(e.message !== '請重新登入') ntf('⚠ 雲端儲存失敗，已存本地'); }
+}
+async function saveVendorsCloud(){
+  try { await apiPost('saveVendors', vendors); lSave('vendors', vendors); }
+  catch(e){ lSave('vendors', vendors); if(e.message !== '請重新登入') ntf('⚠ 雲端儲存失敗，已存本地'); }
+}
+async function saveHolidaysCloud(){
+  try { await apiPost('saveHolidays', holidays); lSave('holidays', holidays); buildHolSet(); }
+  catch(e){ lSave('holidays', holidays); buildHolSet(); if(e.message !== '請重新登入') ntf('⚠ 雲端儲存失敗，已存本地'); }
+}
+
+// ══ BACKUP MODAL ═══════════════════════════════════
+function openBackup(){ document.getElementById('backup-modal').classList.add('open'); _loadBackupList(); }
+function closeBackup(){ document.getElementById('backup-modal').classList.remove('open'); }
+
+async function _loadBackupList(){
+  const sel = document.getElementById('backupSelect');
+  sel.innerHTML = '<option value="">讀取備份清單中…</option>';
+  try {
+    const res = await apiGet('getBackups');
+    _backupsCache = (res && res.backups) || [];
+    if(!_backupsCache.length){ sel.innerHTML = '<option value="">目前沒有任何雲端備份</option>'; return; }
+    sel.innerHTML = _backupsCache.map(b => `<option value="${esc(b.id)}">${esc(b.date)}　${esc(b.name)}</option>`).join('');
+  } catch(e){ sel.innerHTML = `<option value="">讀取失敗：${esc(e.message)}</option>`; }
+}
+
+async function runManualBackup(){
+  const btn = document.getElementById('backupNowBtn'), orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '⏳ 備份中…';
+  try {
+    const res = await apiPost('backup', {});
+    if(res && res.error) throw new Error(res.error);
+    localStorage.setItem(LAST_BK_KEY, new Date().toISOString().slice(0,10));
+    alert('備份完成 ✓\n檔名：' + (res && res.backupName ? res.backupName : ''));
+    _loadBackupList();
+  } catch(e){ if(e.message !== '請重新登入') alert('備份失敗：' + e.message); }
+  finally { btn.disabled = false; btn.textContent = orig; }
+}
+
+async function runRestoreBackup(){
+  const sel = document.getElementById('backupSelect'), fileId = sel.value;
+  if(!fileId){ alert('請先選擇一份備份'); return; }
+  const found = (_backupsCache || []).find(b => b.id === fileId);
+  const label = found ? `${found.date}　${found.name}` : fileId;
+  if(!confirm(`確定用「${label}」覆蓋目前全部資料？\n此動作無法復原。`)) return;
+  const btn = document.getElementById('backupRestoreBtn'), orig = btn.textContent;
+  btn.disabled = true; btn.textContent = '還原中…'; showLoading(true);
+  try {
+    const res = await apiPost('restore', { backupFileId: fileId });
+    if(res && res.error) throw new Error(res.error);
+    alert('還原完成 ✓\n頁面即將重新載入最新資料。');
+    closeBackup(); await fetchAll(); renderTable(); updateStats();
+  } catch(e){ if(e.message !== '請重新登入') alert('還原失敗：' + e.message); }
+  finally { btn.disabled = false; btn.textContent = orig; showLoading(false); }
+}
+
+// ── Local JSON backup / restore ──────────────────
+function manualBackupLocal(){
+  const b = new Blob([JSON.stringify({invoices, vendors, holidays, ts: new Date().toISOString()}, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(b);
+  a.download = '發票備份_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '') + '.json';
+  a.click(); ntf('✓ 備份已下載');
+}
+function restoreLocalBackup(e){
+  const f = e.target.files[0]; if(!f) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const d = JSON.parse(ev.target.result);
+      if(!Array.isArray(d.invoices)) throw 1;
+      if(!confirm(`確定還原？將載入 ${d.invoices.length} 筆發票資料`)) return;
+      invoices = d.invoices || []; vendors = (d.vendors || DEF_V).map(v => ({tax:'',paydays:'',currency:'',...v}));
+      holidays = d.holidays || [...DEF_HOL]; buildHolSet();
+      lSave('invoices',invoices); lSave('vendors',vendors); lSave('holidays',holidays);
+      saveInvoicesCloud(); saveVendorsCloud(); saveHolidaysCloud();
+      renderTable(); updateStats(); renderVendors(); ntf('✓ 備份已還原');
+    } catch { alert('備份檔格式錯誤'); }
+  };
+  reader.readAsText(f); e.target.value = '';
+}
+
+// ══ DATE UTILS ═════════════════════════════════════
+function fmt(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function parseD(s){ if(!s)return null; const[y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function isHol(d){ return d.getDay()===0 || d.getDay()===6 || holSet.has(fmt(d)); }
+function nextBiz(d){ const r=new Date(d); while(isHol(r)) r.setDate(r.getDate()+1); return r; }
+function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+
+// ══ PAY DATE CALC ══════════════════════════════════
+function calcTWD(finish, paydays){
+  const fd = parseD(finish), pd = parseInt(paydays)||0;
+  const base = fd.getDate()<=25
+    ? new Date(fd.getFullYear(), fd.getMonth()+1, 10)
+    : new Date(fd.getFullYear(), fd.getMonth()+2, 10);
+  const calcDate = addDays(base, pd);
+  let cand = new Date(calcDate);
+  for(let i=0;i<60;i++){ const d=cand.getDate(); if(d===10||d===25) break; cand.setDate(cand.getDate()+1); }
+  const payDay = nextBiz(cand);
+  const adj = fmt(payDay) !== fmt(cand) ? ` → 假日順延至 ${fmt(payDay)}` : '';
+  return { paydate: fmt(payDay), hint: `台幣：基準 ${fmt(base)}（${fd.getDate()<=25?'≤':'>'} 25日）+ ${pd}天 = ${fmt(calcDate)} → 最近付款日 ${fmt(cand)}${adj}` };
+}
+function calcFX(finish, paydays){
+  const fd = parseD(finish), pd = parseInt(paydays)||0;
+  const calcDate = addDays(fd, pd);
+  let cand = new Date(calcDate);
+  for(let i=0;i<60;i++){ const d=cand.getDate(); if(d===14||d===28) break; cand.setDate(cand.getDate()+1); }
+  return { paydate: fmt(cand), hint: `外幣：驗收日 + ${pd}天 = ${fmt(calcDate)} → 最近付款日（14/28日）${fmt(cand)}` };
+}
+function calcPayDate(){
+  const finish=getVal('f-finish'), currency=getVal('f-currency'), paydays=getVal('f-paydays');
+  const hintEl = document.getElementById('calc-hint');
+  if(!finish || !currency){ hintEl.textContent=''; return; }
+  let result;
+  if(currency==='台幣') result = calcTWD(finish, paydays);
+  else if(currency==='外幣') result = calcFX(finish, paydays);
+  else { hintEl.textContent=''; return; }
+  setVal('f-paydate', result.paydate);
+  hintEl.textContent = result.hint;
+}
+function calcPayDateDirect(finish, currency, paydays){
+  if(!finish||!currency) return '';
+  if(currency==='台幣') return calcTWD(finish, paydays).paydate;
+  if(currency==='外幣') return calcFX(finish, paydays).paydate;
+  return '';
+}
+
+// ══ VENDOR LOOKUP ══════════════════════════════════
+function lookupVendor(resetAll){
+  const code = getVal('f-code').toUpperCase();
+  const d    = document.getElementById('f-vd');
+  const v    = vendors.find(x => x.code.toUpperCase() === code);
+  if(v){
+    d.textContent = v.name; d.classList.remove('empty');
+    // 每次輸入代碼都重新帶入廠商設定
+    setVal('f-tax',      v.tax||'');
+    setVal('f-currency', v.currency||'');
+    setVal('f-paydays',  v.paydays||'');
+    calcPayDate();
+  } else {
+    d.textContent = code.length >= 2 ? '— 找不到廠商 —' : '— 自動帶入 —';
+    d.classList.add('empty');
+  }
+}
+
+// ══ HELPERS ════════════════════════════════════════
+function getVal(id){ const e=document.getElementById(id); return e?e.value.trim():''; }
+function setVal(id,v){ const e=document.getElementById(id); if(e) e.value=v; }
+function esc(s){ if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function ntf(msg){ const el=document.getElementById('ntf'); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2800); }
+function showLoading(on){ const el=document.getElementById('loadingOv'); if(el) el.classList.toggle('on',on); }
+
+// ══ PO TAGS ════════════════════════════════════════
+function poKey(e){ if(e.key==='Enter'||e.key===','){ e.preventDefault(); addPo(e.target.value.trim()); e.target.value=''; } else if(e.key==='Backspace'&&e.target.value===''&&poTags.length){ poTags.pop(); drawPo(); } }
+function poComma(e){ if(e.target.value.includes(',')){ const p=e.target.value.split(','); p.slice(0,-1).forEach(x=>addPo(x.trim())); e.target.value=p[p.length-1]; } }
+function addPo(v){ if(v&&!poTags.includes(v)){ poTags.push(v); drawPo(); } }
+function rmPo(i){ poTags.splice(i,1); drawPo(); }
+function drawPo(){
+  const w=document.getElementById('po-wrap'), inp=document.getElementById('po-inp');
+  w.querySelectorAll('.po-tag').forEach(e=>e.remove());
+  poTags.forEach((t,i)=>{ const el=document.createElement('span'); el.className='po-tag'; el.innerHTML=`${esc(t)}<span class="rx" onclick="rmPo(${i})">×</span>`; w.insertBefore(el,inp); });
+}
+
+// ══ RADIO ══════════════════════════════════════════
+function rg(id,el){ document.getElementById(id).querySelectorAll('.rb').forEach(b=>b.classList.remove('on')); el.classList.add('on'); }
+function rgGet(id){ const a=document.getElementById(id).querySelector('.rb.on'); return a?a.textContent.trim():''; }
+function rgSet(id,v){ document.getElementById(id).querySelectorAll('.rb').forEach(b=>b.classList.toggle('on',b.textContent.trim()===v)); }
+
+// ══ FORM ═══════════════════════════════════════════
+async function submitForm(){
+  const code=getVal('f-code').toUpperCase(), date=getVal('f-date');
+  if(!code){ ntf('請輸入廠商代碼'); return; }
+  if(!date){ ntf('請選擇發票日期'); return; }
+  const v = vendors.find(x => x.code.toUpperCase() === code);
+  const rec = {
+    id:       editId || Date.now().toString(),
+    code,     vendor:   v ? v.name : '',
+    date,     tax:      getVal('f-tax'),
+    currency: getVal('f-currency'),
+    paydays:  getVal('f-paydays'),
+    invoice:  getVal('f-invoice'),
+    po:       [...poTags],
+    finance:  rgGet('rg-fin'),
+    sp:       getVal('f-sp'),
+    remark:   getVal('f-remark'),
+    finish:   getVal('f-finish'),
+    paydate:  getVal('f-paydate'),
+    ts:       editId ? (invoices.find(x=>x.id===editId)?.ts || Date.now()) : Date.now()
+  };
+  if(editId){ const i=invoices.findIndex(x=>x.id===editId); if(i>-1) invoices[i]=rec; editId=null; }
+  else invoices.unshift(rec);
+  showLoading(true); await saveInvoicesCloud(); showLoading(false);
+  clearForm(); renderTable(); updateStats();
+  ntf('✓ 發票已儲存');
+  sw('list', document.querySelector('.tab'));
+}
+
+function clearForm(){
+  ['f-code','f-date','f-tax','f-currency','f-paydays','f-invoice','f-sp','f-remark','f-finish','f-paydate'].forEach(id => setVal(id,''));
+  const d=document.getElementById('f-vd'); d.textContent='— 自動帶入 —'; d.classList.add('empty');
+  document.getElementById('calc-hint').textContent = '';
+  poTags=[]; drawPo(); rgSet('rg-fin','— 無');
+  editId=null; document.getElementById('submit-btn').textContent='儲存發票'; document.getElementById('form-title').textContent='新增發票';
+}
+
+function editRecord(id){
+  const r = invoices.find(x => x.id === id); if(!r) return;
+  editId = id;
+  sw('add', document.querySelectorAll('.tab')[1]);
+  document.getElementById('form-title').textContent = '編輯發票';
+  document.getElementById('submit-btn').textContent = '更新發票';
+  setVal('f-code', r.code||'');
+  // 先顯示廠商名稱但不覆蓋欄位
+  const vd = document.getElementById('f-vd');
+  if(r.vendor){ vd.textContent=r.vendor; vd.classList.remove('empty'); } else { vd.textContent='—'; vd.classList.add('empty'); }
+  // 帶入儲存的值（不重新從廠商主檔帶入，尊重儲存時的設定）
+  setVal('f-tax',      r.tax||'');
+  setVal('f-currency', r.currency||'');
+  setVal('f-paydays',  r.paydays||'');
+  setVal('f-date',     r.date||'');
+  setVal('f-invoice',  r.invoice||'');
+  setVal('f-sp',       r.sp||'');
+  setVal('f-remark',   r.remark||'');
+  setVal('f-finish',   r.finish||'');
+  setVal('f-paydate',  r.paydate||'');
+  document.getElementById('calc-hint').textContent = '';
+  poTags = r.po ? [...r.po] : []; drawPo();
+  rgSet('rg-fin', r.finance||'— 無');
+  window.scrollTo(0, 0);
+}
+
+async function deleteRecord(id){
+  if(!confirm('確定刪除此筆發票？')) return;
+  invoices = invoices.filter(x => x.id !== id);
+  showLoading(true); await saveInvoicesCloud(); showLoading(false);
+  renderTable(); updateStats(); ntf('✓ 已刪除');
+}
+
+async function saveFinish(id, val){
+  const r = invoices.find(x => x.id === id); if(!r) return;
+  r.finish = val;
+  if(val && r.currency) r.paydate = calcPayDateDirect(val, r.currency, r.paydays||'');
+  showLoading(true); await saveInvoicesCloud(); showLoading(false);
+  renderTable(); updateStats(); ntf('✓ 驗收日已更新');
+}
+
+// ══ TABLE ══════════════════════════════════════════
+function renderTable(){
+  const q  = document.getElementById('s-text').value.toLowerCase();
+  const sf = document.getElementById('s-finish').value;
+  const data = invoices.filter(r => {
+    const ms = !q || [r.vendor,r.code,r.invoice,...(r.po||[]),r.remark,r.sp].join(' ').toLowerCase().includes(q);
+    const mf = !sf || (sf==='done'&&r.finish) || (sf==='pend'&&!r.finish);
+    return ms && mf;
+  });
+  const total=data.length, pages=Math.max(1,Math.ceil(total/PS));
+  if(curPage > pages) curPage = 1;
+  const paged = data.slice((curPage-1)*PS, curPage*PS);
+
+  document.getElementById('tbl-body').innerHTML = paged.length ? paged.map(r => {
+    const poH = r.po&&r.po.length ? `<div class="po-list">${r.po.map(p=>`<span class="po-chip">${esc(p)}</span>`).join('')}</div>` : '—';
+    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" onchange="saveFinish('${r.id}',this.value)" title="輸入驗收日">`;
+    const taxB = r.tax ? `<span class="badge b-tax">${esc(r.tax)}</span>` : '—';
+    const curB = r.currency ? `<span class="badge ${r.currency==='台幣'?'b-cur-tw':'b-cur-fx'}">${esc(r.currency)}</span>` : '—';
+    return `<tr>
+      <td style="font-weight:600">${esc(r.vendor)||'—'}</td>
+      <td class="mono">${esc(r.code)}</td>
+      <td style="white-space:nowrap">${r.date||'—'}</td>
+      <td>${taxB}</td><td>${curB}</td>
+      <td class="mono">${esc(r.invoice)||'—'}</td>
+      <td>${poH}</td>
+      <td style="white-space:nowrap">${finH}</td>
+      <td style="white-space:nowrap;font-weight:600;color:var(--blue)">${r.paydate||'—'}</td>
+      <td><div class="ac">
+        <button class="btn xs" onclick="editRecord('${r.id}')">編輯</button>
+        <button class="btn xs danger" onclick="deleteRecord('${r.id}')">刪除</button>
+      </div></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="10" style="text-align:center;padding:28px;color:var(--tx3)">無符合記錄</td></tr>`;
+
+  // Pagination
+  const pg = document.getElementById('pgbar');
+  if(pages <= 1){ pg.innerHTML = `<span class="pginfo">共 ${total} 筆</span>`; return; }
+  let h = `<button class="pgbtn" onclick="gp(${curPage-1})" ${curPage===1?'disabled':''}>‹</button>`;
+  for(let i=1;i<=pages;i++){
+    if(i===1||i===pages||Math.abs(i-curPage)<=2) h += `<button class="pgbtn ${i===curPage?'on':''}" onclick="gp(${i})">${i}</button>`;
+    else if(Math.abs(i-curPage)===3) h += `<span style="color:var(--tx3);padding:0 2px">…</span>`;
+  }
+  h += `<button class="pgbtn" onclick="gp(${curPage+1})" ${curPage===pages?'disabled':''}>›</button>`;
+  h += `<span class="pginfo">共 ${total} 筆</span>`;
+  pg.innerHTML = h;
+}
+function gp(p){ curPage=p; renderTable(); }
+function updateStats(){
+  document.getElementById('m-total').textContent = invoices.length;
+  document.getElementById('m-done').textContent  = invoices.filter(r=>r.finish).length;
+  document.getElementById('m-pend').textContent  = invoices.filter(r=>!r.finish).length;
+  document.getElementById('hdr-count').textContent = invoices.length + ' 筆　';
+}
+
+// ══ TABS ═══════════════════════════════════════════
+function sw(name, btn){
+  document.querySelectorAll('[id^="tab-"]').forEach(e => e.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(e => e.classList.remove('active'));
+  const tab = document.getElementById('tab-'+name);
+  if(tab) tab.classList.add('active');
+  if(btn) btn.classList.add('active');
+  else { const idx={list:0,add:1,vendors:2}[name]; const tabs=document.querySelectorAll('.tab'); if(tabs[idx]) tabs[idx].classList.add('active'); }
+  if(name === 'vendors') renderVendors();
+  if(name === 'list'){ renderTable(); updateStats(); }
+}
+
+// ══ VENDOR MAINTENANCE ═════════════════════════════
+function renderVendors(){
+  const q = (document.getElementById('vm-search')||{}).value || '';
+  const list = vendors.filter(v => !q || v.code.toLowerCase().includes(q.toLowerCase()) || v.name.includes(q));
+  document.getElementById('vm-list').innerHTML = list.length ? list.map(v => `
+    <div class="vm-row" onclick="openVendorEdit('${v.code}')">
+      <span class="vm-code">${esc(v.code)}</span>
+      <span class="vm-name">${esc(v.name)||'—'}</span>
+      <span class="vm-meta">${v.tax||'—'} ／ ${v.currency||'—'} ／ ${v.paydays?v.paydays+'天':'—'}</span>
+      <span style="color:var(--tx3);font-size:13px">›</span>
+    </div>`).join('')
+    : `<div style="text-align:center;padding:24px;color:var(--tx3);font-size:12px">無符合廠商</div>`;
+}
+
+function openVendorEdit(code){
+  vpEditCode = code;
+  const v = code ? vendors.find(x => x.code === code) : null;
+  document.getElementById('vp-title').textContent = code ? `編輯廠商：${v?v.code:''}` : '新增廠商';
+  document.getElementById('vp-code').value      = v ? v.code : '';
+  document.getElementById('vp-name').value      = v ? v.name : '';
+  document.getElementById('vp-tax').value       = v ? v.tax||''      : '';
+  document.getElementById('vp-paydays').value   = v ? v.paydays||''  : '';
+  document.getElementById('vp-currency').value  = v ? v.currency||'' : '';
+  document.getElementById('vp-del-btn').style.display = code ? '' : 'none';
+  document.getElementById('vendor-ov').classList.add('open');
+}
+function closeVendorEdit(){ document.getElementById('vendor-ov').classList.remove('open'); }
+
+async function saveVendorPanel(){
+  const code = document.getElementById('vp-code').value.trim().toUpperCase();
+  const name = document.getElementById('vp-name').value.trim();
+  if(!code){ ntf('請填入代碼'); return; }
+  if(!name){ ntf('請填入廠商名稱'); return; }
+  const tax      = document.getElementById('vp-tax').value;
+  const paydays  = document.getElementById('vp-paydays').value.trim();
+  const currency = document.getElementById('vp-currency').value;
+  if(vpEditCode){
+    if(code !== vpEditCode && vendors.find(v => v.code === code)){ ntf('代碼已存在'); return; }
+    const i = vendors.findIndex(v => v.code === vpEditCode); if(i > -1) vendors[i] = {code,name,tax,paydays,currency};
+  } else {
+    if(vendors.find(v => v.code === code)){ ntf('代碼已存在'); return; }
+    vendors.push({code,name,tax,paydays,currency});
+  }
+  showLoading(true); await saveVendorsCloud(); showLoading(false);
+  renderVendors(); closeVendorEdit(); ntf('✓ 廠商資料已儲存');
+}
+
+async function deleteVendorFromPanel(){
+  if(!vpEditCode) return;
+  if(!confirm(`確定刪除廠商 ${vpEditCode}？`)) return;
+  vendors = vendors.filter(v => v.code !== vpEditCode);
+  showLoading(true); await saveVendorsCloud(); showLoading(false);
+  renderVendors(); closeVendorEdit(); ntf('✓ 廠商已刪除');
+}
+
+document.getElementById('vendor-ov').addEventListener('click', function(e){ if(e.target === this) closeVendorEdit(); });
+
+// ══ HOLIDAY MANAGER ════════════════════════════════
+function openHolModal(){ renderHolList(); document.getElementById('hol-modal').classList.add('open'); }
+function closeHolModal(){ document.getElementById('hol-modal').classList.remove('open'); }
+function renderHolList(){
+  holidays.sort((a,b) => a.date.localeCompare(b.date));
+  document.getElementById('hol-count').textContent = holidays.length;
+  document.getElementById('hol-list').innerHTML = holidays.length ? holidays.map((h,i) => `
+    <div class="hol-row">
+      <span class="hol-date">${h.date}</span>
+      <span class="hol-name">${esc(h.name)}</span>
+      <button class="hol-del" onclick="delHoliday(${i})">刪除</button>
+    </div>`).join('')
+    : `<div style="text-align:center;padding:16px;color:var(--tx3);font-size:12px">尚無假日資料</div>`;
+}
+function addHoliday(){
+  const date = document.getElementById('hol-new-date').value;
+  const name = document.getElementById('hol-new-name').value.trim();
+  if(!date){ ntf('請選擇日期'); return; }
+  if(!name){ ntf('請填入假日名稱'); return; }
+  if(holidays.find(h => h.date === date)){ ntf('此日期已存在'); return; }
+  holidays.push({date, name}); renderHolList();
+  document.getElementById('hol-new-date').value = '';
+  document.getElementById('hol-new-name').value = '';
+  ntf('✓ 假日已新增（請按儲存）');
+}
+function delHoliday(i){ holidays.splice(i,1); renderHolList(); }
+document.getElementById('hol-modal').addEventListener('click', function(e){ if(e.target === this) closeHolModal(); });
+document.getElementById('backup-modal').addEventListener('click', function(e){ if(e.target === this) closeBackup(); });
+
+// ══ EXPORT CSV ═════════════════════════════════════
+function exportCSV(){
+  const hd = ['廠商','代碼','發票日期','稅別','幣別','付款天數','發票號碼','PO#','2聯財務','特殊','備註','完成日','預計付款日'];
+  const rows = invoices.map(r => [r.vendor,r.code,r.date,r.tax,r.currency,r.paydays,r.invoice,(r.po||[]).join('|'),r.finance,r.sp,r.remark,r.finish,r.paydate]
+    .map(v => `"${(v||'').toString().replace(/"/g,'""')}"`).join(','));
+  const csv = '\uFEFF' + [hd.join(','), ...rows].join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download = 'invoices_' + new Date().toISOString().slice(0,10) + '.csv'; a.click();
+}
+
+// ══ INIT ═══════════════════════════════════════════
+_TOKEN = sessionStorage.getItem('inv_token') || '';
+if(checkAuth()){
+  document.getElementById('ls').style.display = 'none';
+  startApp();
+} else {
+  setTimeout(() => document.getElementById('pwInput').focus(), 100);
+}
+</script>
+</body>
+</html>

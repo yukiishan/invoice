@@ -1,0 +1,13 @@
+{
+  "name": "發票管理系統",
+  "short_name": "發票系統",
+  "description": "Invoice Management System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#7AAEC8",
+  "theme_color": "#4A7FA5",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
