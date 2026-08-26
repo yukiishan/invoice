@@ -363,7 +363,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
       <div class="fgg" style="grid-template-columns:1fr 1fr;margin-bottom:4px">
         <div class="fg">
           <label>完成日（驗收日）</label>
-          <input type="date" id="f-finish" onchange="calcPayDate()" onfocus="if(!this.value){this.value=new Date().toISOString().slice(0,10);calcPayDate();}">
+          <input type="date" id="f-finish" onchange="calcPayDate()" oninput="calcPayDate()" onfocus="if(!this.value)this.value=new Date().toISOString().slice(0,10);">
           <div class="calc-hint" id="calc-hint"></div>
         </div>
         <div class="fg">
@@ -843,13 +843,13 @@ function calcFX(finish, paydays){
 function calcPayDate(){
   const finish=getVal('f-finish'), currency=getVal('f-currency'), paydays=getVal('f-paydays');
   const hintEl = document.getElementById('calc-hint');
-  if(!finish || !currency){ hintEl.textContent=''; return; }
+  if(!finish || !currency){ if(hintEl) hintEl.textContent=''; return; }
   let result;
   if(currency==='台幣') result = calcTWD(finish, paydays);
   else if(currency==='外幣') result = calcFX(finish, paydays);
-  else { hintEl.textContent=''; return; }
+  else { if(hintEl) hintEl.textContent=''; return; }
   setVal('f-paydate', result.paydate);
-  hintEl.textContent = result.hint;
+  if(hintEl) hintEl.textContent = result.hint;
 }
 function calcPayDateDirect(finish, currency, paydays){
   if(!finish||!currency) return '';
@@ -966,6 +966,8 @@ function editRecord(id){
   setVal('f-finish',   r.finish||'');
   setVal('f-paydate',  r.paydate||'');
   document.getElementById('calc-hint').textContent = '';
+  // 重算預計付款日（確保顯示計算說明）
+  if(r.finish && r.currency) calcPayDate();
   poTags = r.po ? [...r.po] : []; drawPo();
   rgSet('rg-fin', r.finance||'— 無');
   window.scrollTo(0, 0);
@@ -1001,7 +1003,7 @@ function renderTable(){
 
   document.getElementById('tbl-body').innerHTML = paged.length ? paged.map(r => {
     const poH = r.po&&r.po.length ? `<div class="po-list">${r.po.map(p=>`<span class="po-chip">${esc(p)}</span>`).join('')}</div>` : '—';
-    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" onchange="saveFinish('${r.id}',this.value)" onfocus="if(!this.value){this.value=new Date().toISOString().slice(0,10);calcPayDate();}" title="輸入驗收日">`;
+    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" onchange="saveFinish('${r.id}',this.value)" onfocus="if(!this.value)this.value=new Date().toISOString().slice(0,10);" title="輸入驗收日">`;
     const taxB = r.tax ? `<span class="badge b-tax">${esc(r.tax)}</span>` : '—';
     const curB = r.currency ? `<span class="badge ${r.currency==='台幣'?'b-cur-tw':'b-cur-fx'}">${esc(r.currency)}</span>` : '—';
     return `<tr>
