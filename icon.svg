@@ -1,16 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
-  <!-- Background -->
-  <rect width="192" height="192" rx="38" fill="#7AAEC8"/>
-  <!-- Document body -->
-  <rect x="46" y="34" width="90" height="112" rx="8" fill="rgba(255,255,255,0.18)" stroke="rgba(255,255,255,0.55)" stroke-width="2"/>
-  <!-- Folded corner -->
-  <path d="M114 34 L136 56 L114 56 Z" fill="rgba(255,255,255,0.32)" stroke="rgba(255,255,255,0.45)" stroke-width="1.5" stroke-linejoin="round"/>
-  <path d="M114 34 L136 56" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1.5"/>
-  <!-- Lines on document -->
-  <line x1="62" y1="76" x2="118" y2="76" stroke="rgba(255,255,255,0.7)" stroke-width="3.5" stroke-linecap="round"/>
-  <line x1="62" y1="92" x2="118" y2="92" stroke="rgba(255,255,255,0.7)" stroke-width="3.5" stroke-linecap="round"/>
-  <line x1="62" y1="108" x2="100" y2="108" stroke="rgba(255,255,255,0.7)" stroke-width="3.5" stroke-linecap="round"/>
-  <!-- Checkmark circle -->
-  <circle cx="133" cy="133" r="28" fill="#5A9BBF" stroke="rgba(255,255,255,0.6)" stroke-width="2"/>
-  <polyline points="121,133 130,142 146,124" fill="none" stroke="white" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Background: #BFC2CB -->
+  <rect width="192" height="192" rx="38" fill="#BFC2CB"/>
+  <!-- Subtle inner glow -->
+  <rect x="12" y="12" width="168" height="168" rx="30" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="2"/>
+  <!-- Document body - line art -->
+  <rect x="44" y="32" width="82" height="104" rx="7" fill="none" stroke="#4A5568" stroke-width="4" stroke-linejoin="round"/>
+  <!-- Folded corner cut -->
+  <path d="M104 32 L126 54" fill="none" stroke="#4A5568" stroke-width="4" stroke-linecap="round"/>
+  <path d="M104 32 L104 54 L126 54" fill="none" stroke="#4A5568" stroke-width="4" stroke-linejoin="round"/>
+  <!-- Horizontal lines -->
+  <line x1="60" y1="74" x2="110" y2="74" stroke="#8E9BAE" stroke-width="4" stroke-linecap="round"/>
+  <line x1="60" y1="90" x2="110" y2="90" stroke="#8E9BAE" stroke-width="4" stroke-linecap="round"/>
+  <line x1="60" y1="106" x2="90" y2="106" stroke="#8E9BAE" stroke-width="4" stroke-linecap="round"/>
+  <!-- Checkmark circle - line art -->
+  <circle cx="134" cy="138" r="28" fill="none" stroke="#8E9BAE" stroke-width="4"/>
+  <polyline points="120,138 130,148 150,124" fill="none" stroke="#4A5568" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
