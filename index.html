@@ -363,7 +363,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
       <div class="fgg c2" style="margin-bottom:4px">
         <div class="fg">
           <label>完成日（驗收日）</label>
-          <input type="date" id="f-finish" onchange="calcPayDate()">
+          <input type="date" id="f-finish" onchange="calcPayDate()" onfocus="if(!this.value)this.value=new Date().toISOString().slice(0,10);">
           <div class="calc-hint" id="calc-hint"></div>
         </div>
         <div class="fg">
@@ -384,8 +384,8 @@ tbody td{padding:5px 7px;vertical-align:middle}
 <div id="tab-vendors">
   <div class="toolbar">
     <input type="text" id="vm-search" placeholder="🔍 搜尋廠商代碼或名稱…" oninput="renderVendors()">
-    <div class="spacer"></div>
     <button class="btn primary sm" onclick="openVendorEdit(null)">＋ 新增廠商</button>
+    <div class="spacer"></div>
   </div>
   <div class="content">
     <div id="vm-list"></div>
@@ -393,8 +393,8 @@ tbody td{padding:5px 7px;vertical-align:middle}
 </div>
 
 <!-- ══ VENDOR EDIT PANEL (centered detpanel) ══ -->
-<div class="detov" id="vendor-ov">
-  <div class="detpanel" style="max-width:680px">
+<div class="detov" id="vendor-ov" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:80;align-items:center;justify-content:center">
+  <div style="background:var(--sf);border-radius:var(--rl);border:1px solid var(--bd);width:560px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 48px rgba(0,0,0,.2)">
     <div class="dethd">
       <button class="detback" onclick="closeVendorEdit()">←</button>
       <h2 id="vp-title">廠商資料</h2>
@@ -934,6 +934,8 @@ function clearForm(){
   document.getElementById('calc-hint').textContent = '';
   poTags=[]; drawPo(); rgSet('rg-fin','— 無');
   editId=null; document.getElementById('submit-btn').textContent='儲存發票'; document.getElementById('form-title').textContent='新增發票';
+  // 新增模式：預設帶入今天作為發票日期
+  if(!editId) setVal('f-date', new Date().toISOString().slice(0,10));
 }
 
 function editRecord(id){
@@ -992,7 +994,7 @@ function renderTable(){
 
   document.getElementById('tbl-body').innerHTML = paged.length ? paged.map(r => {
     const poH = r.po&&r.po.length ? `<div class="po-list">${r.po.map(p=>`<span class="po-chip">${esc(p)}</span>`).join('')}</div>` : '—';
-    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" onchange="saveFinish('${r.id}',this.value)" title="輸入驗收日">`;
+    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" onchange="saveFinish('${r.id}',this.value)" onfocus="if(!this.value)this.value=new Date().toISOString().slice(0,10);" title="輸入驗收日">`;
     const taxB = r.tax ? `<span class="badge b-tax">${esc(r.tax)}</span>` : '—';
     const curB = r.currency ? `<span class="badge ${r.currency==='台幣'?'b-cur-tw':'b-cur-fx'}">${esc(r.currency)}</span>` : '—';
     return `<tr>
@@ -1041,6 +1043,7 @@ function sw(name, btn){
   else { const idx={list:0,add:1,vendors:2}[name]; const tabs=document.querySelectorAll('.tab'); if(tabs[idx]) tabs[idx].classList.add('active'); }
   if(name === 'vendors') renderVendors();
   if(name === 'list'){ renderTable(); updateStats(); }
+  if(name === 'add' && !editId){ const fd=document.getElementById('f-date'); if(!fd||!fd.value) setVal('f-date', new Date().toISOString().slice(0,10)); }
 }
 
 // ══ VENDOR MAINTENANCE ═════════════════════════════
@@ -1050,8 +1053,10 @@ function renderVendors(){
   document.getElementById('vm-list').innerHTML = list.length ? list.map(v => `
     <div class="vm-row" onclick="openVendorEdit('${v.code}')">
       <span class="vm-code">${esc(v.code)}</span>
-      <span class="vm-name">${esc(v.name)||'—'}</span>
-      <span class="vm-meta">${v.tax||'—'} ／ ${v.currency||'—'} ／ ${v.paydays?v.paydays+'天':'—'}</span>
+      <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0">
+        <span class="vm-name">${esc(v.name)||'—'}</span>
+        <span class="vm-meta">${v.tax||'—'} ／ ${v.currency||'—'} ／ ${v.paydays?v.paydays+'天':'—'}</span>
+      </div>
       <span style="color:var(--tx3);font-size:13px">›</span>
     </div>`).join('')
     : `<div style="text-align:center;padding:24px;color:var(--tx3);font-size:12px">無符合廠商</div>`;
@@ -1067,9 +1072,9 @@ function openVendorEdit(code){
   document.getElementById('vp-paydays').value   = v ? v.paydays||''  : '';
   document.getElementById('vp-currency').value  = v ? v.currency||'' : '';
   document.getElementById('vp-del-btn').style.display = code ? '' : 'none';
-  document.getElementById('vendor-ov').classList.add('open');
+  const ov=document.getElementById('vendor-ov'); ov.style.display='flex';
 }
-function closeVendorEdit(){ document.getElementById('vendor-ov').classList.remove('open'); }
+function closeVendorEdit(){ document.getElementById('vendor-ov').style.display='none'; }
 
 async function saveVendorPanel(){
   const code = document.getElementById('vp-code').value.trim().toUpperCase();
@@ -1098,7 +1103,7 @@ async function deleteVendorFromPanel(){
   renderVendors(); closeVendorEdit(); ntf('✓ 廠商已刪除');
 }
 
-document.getElementById('vendor-ov').addEventListener('click', function(e){ if(e.target === this) closeVendorEdit(); });
+document.getElementById('vendor-ov').addEventListener('click', function(e){ if(e.target === this) closeVendorEdit(); }); document.getElementById('vendor-ov').style.display='none';
 
 // ══ HOLIDAY MANAGER ════════════════════════════════
 function openHolModal(){ renderHolList(); document.getElementById('hol-modal').classList.add('open'); }
