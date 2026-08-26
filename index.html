@@ -279,11 +279,11 @@ tbody td{padding:5px 7px;vertical-align:middle}
 <!-- ══ ADD / EDIT TAB ══ -->
 <div id="tab-add">
   <div class="content">
-    <div style="background:var(--sf);border:1px solid var(--bd);border-radius:var(--rl);padding:16px 18px;max-width:1290px">
+    <div style="background:var(--sf);border:1px solid var(--bd);border-radius:var(--rl);padding:16px 18px;max-width:860px;margin:0 auto">
       <div class="sechd" id="form-title">新增發票</div>
 
-      <!-- Row 1: 代碼(120px) | 廠商名稱 | 付款時間 -->
-      <div class="fgg" style="grid-template-columns:120px 1fr 150px">
+      <!-- Row 1: 代碼 | 廠商名稱 | 付款時間 -->
+      <div class="fgg" style="grid-template-columns:90px 120px 1fr 110px">
         <div class="fg">
           <label>代碼 Code <span style="color:var(--red)">*</span></label>
           <input type="text" id="f-code" placeholder="DE06" maxlength="6"
@@ -292,7 +292,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
         </div>
         <div class="fg">
           <label>廠商名稱</label>
-          <div class="vauto empty" id="f-vd">— 自動帶入 —</div>
+          <div class="vauto empty" id="f-vd" style="max-width:120px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">— 自動帶入 —</div>
         </div>
         <div class="fg">
           <label>付款時間（天）</label>
@@ -301,14 +301,14 @@ tbody td{padding:5px 7px;vertical-align:middle}
       </div>
 
       <!-- Row 2: 發票日期 | 發票號碼 | PO# -->
-      <div class="fgg c3">
+      <div class="fgg" style="grid-template-columns:148px 1fr 1fr">
         <div class="fg">
           <label>發票日期 <span style="color:var(--red)">*</span></label>
           <input type="date" id="f-date">
         </div>
         <div class="fg">
           <label>發票號碼 Invoice#</label>
-          <input type="text" id="f-invoice" placeholder="YY05184726" style="font-family:'Courier New',monospace">
+          <input type="text" id="f-invoice" placeholder="YY05184726" oninput="this.value=this.value.toUpperCase()" style="font-family:'Courier New',monospace">
         </div>
         <div class="fg">
           <label>PO# <span style="font-size:9px;color:var(--tx3);text-transform:none;font-weight:400">(Enter 或逗號新增多筆)</span></label>
@@ -319,10 +319,10 @@ tbody td{padding:5px 7px;vertical-align:middle}
       </div>
 
       <!-- Row 3: 稅別 | 幣別 | 2聯財務 | 特殊 -->
-      <div class="fgg c4">
+      <div class="fgg" style="grid-template-columns:148px 148px 1fr 1fr">
         <div class="fg">
           <label>稅別</label>
-          <select id="f-tax">
+          <select id="f-tax" style="width:100%">
             <option value="">— 請選擇 —</option>
             <option value="應稅">應稅</option>
             <option value="零稅">零稅</option>
@@ -331,7 +331,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
         </div>
         <div class="fg">
           <label>幣別</label>
-          <select id="f-currency" onchange="calcPayDate()">
+          <select id="f-currency" onchange="calcPayDate()" style="width:100%">
             <option value="">— 請選擇 —</option>
             <option value="台幣">台幣</option>
             <option value="外幣">外幣</option>
@@ -360,10 +360,10 @@ tbody td{padding:5px 7px;vertical-align:middle}
       </div>
 
       <!-- Row 5: 完成日 | 預計付款日 -->
-      <div class="fgg c2" style="margin-bottom:4px">
+      <div class="fgg" style="grid-template-columns:1fr 1fr;margin-bottom:4px">
         <div class="fg">
           <label>完成日（驗收日）</label>
-          <input type="date" id="f-finish" onchange="calcPayDate()" onfocus="if(!this.value)this.value=new Date().toISOString().slice(0,10);">
+          <input type="date" id="f-finish" onchange="calcPayDate()" onfocus="if(!this.value){this.value=new Date().toISOString().slice(0,10);calcPayDate();}">
           <div class="calc-hint" id="calc-hint"></div>
         </div>
         <div class="fg">
@@ -886,7 +886,14 @@ function showLoading(on){ const el=document.getElementById('loadingOv'); if(el) 
 // ══ PO TAGS ════════════════════════════════════════
 function poKey(e){ if(e.key==='Enter'||e.key===','){ e.preventDefault(); addPo(e.target.value.trim()); e.target.value=''; } else if(e.key==='Backspace'&&e.target.value===''&&poTags.length){ poTags.pop(); drawPo(); } }
 function poComma(e){ if(e.target.value.includes(',')){ const p=e.target.value.split(','); p.slice(0,-1).forEach(x=>addPo(x.trim())); e.target.value=p[p.length-1]; } }
-function addPo(v){ if(v&&!poTags.includes(v)){ poTags.push(v); drawPo(); } }
+function normalizePo(v){
+  if(!v) return v;
+  v = v.trim();
+  if(v.startsWith('-')) return 'LMTL' + v;   // -682152B → LMTL-682152B
+  if(v.startsWith('*')) return 'FMTL-' + v.slice(1); // *682152B → FMTL-682152B
+  return v;
+}
+function addPo(v){ v=normalizePo(v); if(v&&!poTags.includes(v)){ poTags.push(v); drawPo(); } }
 function rmPo(i){ poTags.splice(i,1); drawPo(); }
 function drawPo(){
   const w=document.getElementById('po-wrap'), inp=document.getElementById('po-inp');
@@ -994,7 +1001,7 @@ function renderTable(){
 
   document.getElementById('tbl-body').innerHTML = paged.length ? paged.map(r => {
     const poH = r.po&&r.po.length ? `<div class="po-list">${r.po.map(p=>`<span class="po-chip">${esc(p)}</span>`).join('')}</div>` : '—';
-    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" onchange="saveFinish('${r.id}',this.value)" onfocus="if(!this.value)this.value=new Date().toISOString().slice(0,10);" title="輸入驗收日">`;
+    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" onchange="saveFinish('${r.id}',this.value)" onfocus="if(!this.value){this.value=new Date().toISOString().slice(0,10);calcPayDate();}" title="輸入驗收日">`;
     const taxB = r.tax ? `<span class="badge b-tax">${esc(r.tax)}</span>` : '—';
     const curB = r.currency ? `<span class="badge ${r.currency==='台幣'?'b-cur-tw':'b-cur-fx'}">${esc(r.currency)}</span>` : '—';
     return `<tr>
