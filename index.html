@@ -171,6 +171,8 @@ tbody td{padding:5px 7px;vertical-align:middle}
 #loadingOv.on{display:flex}
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinner{width:32px;height:32px;border:3px solid var(--bd);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
+.flt-btn{border:1px solid var(--bd);background:var(--sf2);color:var(--tx2)}
+.flt-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -250,8 +252,19 @@ tbody td{padding:5px 7px;vertical-align:middle}
     <select id="s-finish" onchange="renderTable()">
       <option value="">全部狀態</option>
       <option value="done">已驗收</option>
-      <option value="pend">待驗收</option>
+      <option value="pend" selected>待驗收</option>
     </select>
+    <select id="s-tax" onchange="renderTable()" style="height:26px;font-size:11px;padding:3px 6px;border-radius:var(--r);border:1px solid var(--bd);background:var(--sf2);color:var(--tx);font-family:inherit">
+      <option value="">所有稅別</option>
+      <option value="應稅">應稅</option>
+      <option value="零稅">零稅</option>
+      <option value="免稅">免稅</option>
+    </select>
+    <div style="display:flex;gap:3px;align-items:center">
+      <button class="btn sm flt-btn" data-flt="" onclick="setFlt('',this)">全部</button>
+      <button class="btn sm flt-btn active" data-flt="pend" onclick="setFlt('pend',this)">待驗收</button>
+      <button class="btn sm flt-btn" data-flt="done" onclick="setFlt('done',this)">已驗收</button>
+    </div>
     <div class="spacer"></div>
   </div>
   <div class="content">
@@ -929,10 +942,11 @@ async function submitForm(){
   };
   if(editId){ const i=invoices.findIndex(x=>x.id===editId); if(i>-1) invoices[i]=rec; editId=null; }
   else invoices.unshift(rec);
-  showLoading(true); await saveInvoicesCloud(); showLoading(false);
+  // 先更新畫面，背景儲存
   clearForm(); renderTable(); updateStats();
-  ntf('✓ 發票已儲存');
   sw('list', document.querySelector('.tab'));
+  ntf('✓ 發票已儲存（同步中...）');
+  saveInvoicesCloud().then(()=>ntf('✓ 發票已儲存')).catch(()=>ntf('⚠ 儲存失敗，請檢查網路'));
 }
 
 function clearForm(){
@@ -983,19 +997,31 @@ async function deleteRecord(id){
 async function saveFinish(id, val){
   const r = invoices.find(x => x.id === id); if(!r) return;
   r.finish = val;
-  if(val && r.currency) r.paydate = calcPayDateDirect(val, r.currency, r.paydays||'');
-  showLoading(true); await saveInvoicesCloud(); showLoading(false);
-  renderTable(); updateStats(); ntf('✓ 驗收日已更新');
+  const cur = String(r.currency || '').trim();
+  const pd  = String(r.paydays  || '').trim();
+  if(val && cur){
+    r.paydate = calcPayDateDirect(val, cur, pd);
+  } else if(val && !cur){
+    r.paydate = '';
+  }
+  // 先立即更新畫面，不等 API
+  renderTable(); updateStats();
+  if(val && !cur) ntf('⚠ 此發票未設定幣別，無法計算預計付款日');
+  else if(val) ntf('✓ 驗收日與預計付款日已更新');
+  // 背景非同步儲存到雲端
+  saveInvoicesCloud().catch(()=>{});
 }
 
 // ══ TABLE ══════════════════════════════════════════
 function renderTable(){
   const q  = document.getElementById('s-text').value.toLowerCase();
   const sf = document.getElementById('s-finish').value;
+  const stax = (document.getElementById('s-tax')||{}).value || '';
   const data = invoices.filter(r => {
     const ms = !q || [r.vendor,r.code,r.invoice,...(r.po||[]),r.remark,r.sp].join(' ').toLowerCase().includes(q);
     const mf = !sf || (sf==='done'&&r.finish) || (sf==='pend'&&!r.finish);
-    return ms && mf;
+    const mt = !stax || r.tax === stax;
+    return ms && mf && mt;
   });
   const total=data.length, pages=Math.max(1,Math.ceil(total/PS));
   if(curPage > pages) curPage = 1;
@@ -1003,7 +1029,7 @@ function renderTable(){
 
   document.getElementById('tbl-body').innerHTML = paged.length ? paged.map(r => {
     const poH = r.po&&r.po.length ? `<div class="po-list">${r.po.map(p=>`<span class="po-chip">${esc(p)}</span>`).join('')}</div>` : '—';
-    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" onchange="saveFinish('${r.id}',this.value)" onfocus="if(!this.value)this.value=new Date().toISOString().slice(0,10);" title="輸入驗收日">`;
+    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" onchange="saveFinish('${r.id}',this.value)" oninput="saveFinish('${r.id}',this.value)" onfocus="if(!this.value)this.value=new Date().toISOString().slice(0,10);" title="輸入驗收日">`;
     const taxB = r.tax ? `<span class="badge b-tax">${esc(r.tax)}</span>` : '—';
     const curB = r.currency ? `<span class="badge ${r.currency==='台幣'?'b-cur-tw':'b-cur-fx'}">${esc(r.currency)}</span>` : '—';
     return `<tr>
@@ -1016,8 +1042,8 @@ function renderTable(){
       <td style="white-space:nowrap">${finH}</td>
       <td style="white-space:nowrap;font-weight:600;color:var(--blue)">${r.paydate||'—'}</td>
       <td><div class="ac">
-        <button class="btn xs" onclick="editRecord('${r.id}')">編輯</button>
-        <button class="btn xs danger" onclick="deleteRecord('${r.id}')">刪除</button>
+        <button class="btn xs" data-action="edit" data-id="${r.id}">編輯</button>
+        <button class="btn xs danger" data-action="del" data-id="${r.id}">刪除</button>
       </div></td>
     </tr>`;
   }).join('') : `<tr><td colspan="10" style="text-align:center;padding:28px;color:var(--tx3)">無符合記錄</td></tr>`;
@@ -1035,6 +1061,24 @@ function renderTable(){
   pg.innerHTML = h;
 }
 function gp(p){ curPage=p; renderTable(); }
+
+function setFlt(val, btn){
+  document.querySelectorAll('.flt-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  const sel = document.getElementById('s-finish');
+  if(sel) sel.value = val;
+  renderTable();
+}
+
+// 事件委派：處理發票列表的編輯和刪除按鈕
+document.getElementById('tbl-body').addEventListener('click', function(e){
+  const btn = e.target.closest('[data-action]');
+  if(!btn) return;
+  const id = btn.dataset.id;
+  const action = btn.dataset.action;
+  if(action === 'edit') editRecord(id);
+  else if(action === 'del') deleteRecord(id);
+});
 function updateStats(){
   document.getElementById('m-total').textContent = invoices.length;
   document.getElementById('m-done').textContent  = invoices.filter(r=>r.finish).length;
@@ -1100,8 +1144,8 @@ async function saveVendorPanel(){
     if(vendors.find(v => v.code === code)){ ntf('代碼已存在'); return; }
     vendors.push({code,name,tax,paydays,currency});
   }
-  showLoading(true); await saveVendorsCloud(); showLoading(false);
-  renderVendors(); closeVendorEdit(); ntf('✓ 廠商資料已儲存');
+  renderVendors(); closeVendorEdit(); ntf('✓ 廠商資料已儲存（同步中...）');
+  saveVendorsCloud().then(()=>ntf('✓ 廠商資料已儲存')).catch(()=>ntf('⚠ 儲存失敗，請檢查網路'));
 }
 
 async function deleteVendorFromPanel(){
