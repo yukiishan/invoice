@@ -1084,21 +1084,34 @@ function toggleFlt(group, val, btn){
   renderTable();
 }
 
-// 事件委派：編輯、刪除、完成日
-document.addEventListener('click', function(e){
-  const btn = e.target.closest('[data-action="edit"],[data-action="del"]');
-  if(!btn) return;
-  const id = btn.dataset.id;
-  if(btn.dataset.action === 'edit') editRecord(id);
-  else if(btn.dataset.action === 'del') deleteRecord(id);
-});
-// 完成日 change 用 input 事件委派（最可靠）
-document.addEventListener('change', function(e){
-  if(!e.target.classList.contains('finish-inp')) return;
-  const id = e.target.dataset.id;
-  const val = e.target.value;
-  if(id && val) saveFinish(id, val);
-});
+// 事件委派：編輯、刪除、完成日（DOMContentLoaded 確保 DOM 已就緒）
+function _initDelegation(){
+  // 編輯 / 刪除按鈕（document 層級，不受 tbody 重建影響）
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('[data-action="edit"],[data-action="del"]');
+    if(!btn) return;
+    e.stopPropagation();
+    const id = btn.getAttribute('data-id');
+    const action = btn.getAttribute('data-action');
+    if(action === 'edit') editRecord(id);
+    else if(action === 'del') deleteRecord(id);
+  }, true); // capture phase：確保最先攔截到
+
+  // 完成日：同時監聽 change 和 input（跨瀏覽器相容）
+  function onFinishChange(e){
+    if(!e.target.classList.contains('finish-inp')) return;
+    const id = e.target.getAttribute('data-id');
+    const val = e.target.value;
+    if(id && val) saveFinish(id, val);
+  }
+  document.addEventListener('change', onFinishChange);
+  document.addEventListener('input',  onFinishChange);
+}
+if(document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', _initDelegation);
+} else {
+  _initDelegation();
+}
 function updateStats(){
   document.getElementById('m-total').textContent = invoices.length;
   document.getElementById('m-done').textContent  = invoices.filter(r=>r.finish).length;
@@ -1116,7 +1129,11 @@ function sw(name, btn){
   else { const idx={list:0,add:1,vendors:2}[name]; const tabs=document.querySelectorAll('.tab'); if(tabs[idx]) tabs[idx].classList.add('active'); }
   if(name === 'vendors') renderVendors();
   if(name === 'list'){ updateStats(); }
-  if(name === 'add' && !editId){ const fd=document.getElementById('f-date'); if(!fd||!fd.value) setVal('f-date', new Date().toISOString().slice(0,10)); }
+  if(name === 'add'){
+    const fd=document.getElementById('f-date'); if(!fd||!fd.value) setVal('f-date', new Date().toISOString().slice(0,10));
+    // 自動 focus 代碼欄位（新增模式）或留在當前（編輯模式）
+    setTimeout(()=>{ const fc=document.getElementById('f-code'); if(fc) fc.focus(); }, 80);
+  }
 }
 
 // ══ VENDOR MAINTENANCE ═════════════════════════════
@@ -1146,6 +1163,7 @@ function openVendorEdit(code){
   document.getElementById('vp-currency').value  = v ? v.currency||'' : '';
   document.getElementById('vp-del-btn').style.display = code ? '' : 'none';
   const ov=document.getElementById('vendor-ov'); ov.style.display='flex';
+  setTimeout(()=>{ const vc=document.getElementById('vp-code'); if(vc) vc.focus(); }, 80);
 }
 function closeVendorEdit(){ document.getElementById('vendor-ov').style.display='none'; }
 
