@@ -239,6 +239,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
   <div class="tb-right">
     <span id="hdr-count" style="font-size:11px;color:var(--tx3);margin-right:2px"></span>
     <button class="btn sm warn" onclick="openHolModal()">📅 國定假日</button>
+    <button class="btn sm warn" onclick="openTrackModal()">📑 發票字軌</button>
     <button class="btn sm" onclick="exportCSV()">⬇ CSV</button>
     <button class="btn sm" onclick="openBackup()">☁️ 雲端備份</button>
     <button class="btn sm" onclick="manualBackupLocal()">💾 備份</button>
@@ -316,15 +317,21 @@ tbody td{padding:5px 7px;vertical-align:middle}
         </div>
       </div>
 
-      <!-- Row 2: 發票日期 | 發票號碼 | PO# -->
-      <div class="fgg" style="grid-template-columns:148px 1fr 1fr">
+      <!-- Row 2: 發票日期 | 發票號碼 | 發票形式 | PO# -->
+      <div class="fgg" style="grid-template-columns:148px 1fr 100px 1fr">
         <div class="fg">
           <label>發票日期 <span style="color:var(--red)">*</span></label>
-          <input type="date" id="f-date">
+          <input type="date" id="f-date" onchange="calcInvType()">
         </div>
         <div class="fg">
           <label>發票號碼 Invoice#</label>
-          <input type="text" id="f-invoice" placeholder="YY05184726" oninput="this.value=this.value.toUpperCase()" style="font-family:'Courier New',monospace">
+          <input type="text" id="f-invoice" placeholder="YY05184726"
+            oninput="this.value=this.value.toUpperCase();calcInvType()"
+            style="font-family:'Courier New',monospace">
+        </div>
+        <div class="fg">
+          <label>發票形式</label>
+          <div class="vauto empty" id="f-invtype" style="font-size:11px;min-height:31px">—</div>
         </div>
         <div class="fg">
           <label>PO# <span style="font-size:9px;color:var(--tx3);text-transform:none;font-weight:400">(Enter 或逗號新增多筆)</span></label>
@@ -483,6 +490,42 @@ tbody td{padding:5px 7px;vertical-align:middle}
     <div class="mkft">
       <button class="btn" onclick="closeHolModal()">取消</button>
       <button class="btn primary" onclick="saveHolidaysCloud();closeHolModal()">✓ 儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ INVOICE TRACK MODAL ══ -->
+<div class="mkov" id="track-modal">
+  <div class="mk">
+    <h3>📑 發票字軌管理 <button onclick="closeTrackModal()">✕</button></h3>
+    <p style="font-size:11px;color:var(--tx3);margin-bottom:12px">
+      設定各年月區間對應的字軌，系統會依發票日期年月及發票號碼前兩碼自動判斷發票形式（三聯式 / 電子）。
+    </p>
+    <!-- 新增字軌 -->
+    <div style="display:grid;grid-template-columns:90px 90px 70px 1fr;gap:6px;margin-bottom:10px;align-items:flex-end">
+      <div class="fg">
+        <label>起始年月</label>
+        <input type="month" id="trk-from" style="font-size:11px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:inherit;width:100%">
+      </div>
+      <div class="fg">
+        <label>結束年月</label>
+        <input type="month" id="trk-to" style="font-size:11px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:inherit;width:100%">
+      </div>
+      <div class="fg">
+        <label>字軌（2碼）</label>
+        <input type="text" id="trk-code" maxlength="2" placeholder="AA"
+          style="font-size:12px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:'Courier New',monospace;width:100%;text-transform:uppercase"
+          oninput="this.value=this.value.toUpperCase()">
+      </div>
+      <button class="btn primary sm" onclick="addTrack()" style="align-self:flex-end">新增</button>
+    </div>
+    <div style="font-size:10px;font-weight:700;color:var(--tx3);margin-bottom:5px;text-transform:uppercase">
+      字軌清單（<span id="trk-count">0</span> 筆）
+    </div>
+    <div id="trk-list" style="display:flex;flex-direction:column;gap:2px;max-height:280px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--r);padding:5px;margin-bottom:10px"></div>
+    <div class="mkft">
+      <button class="btn" onclick="closeTrackModal()">取消</button>
+      <button class="btn primary" onclick="saveTracksCloud();closeTrackModal()">✓ 儲存</button>
     </div>
   </div>
 </div>
@@ -708,6 +751,9 @@ async function fetchAll(){
   holidays  = all.holidays  || [...DEF_HOL];
   buildHolSet();
   lSave('invoices', invoices); lSave('vendors', vendors); lSave('holidays', holidays);
+  // 字軌：嘗試從 API 讀取，失敗則用本地
+  try{ const tr=await apiGet('getTracks'); if(Array.isArray(tr)) tracks=tr; } catch(e){}
+  localStorage.setItem('inv_tracks', JSON.stringify(tracks));
 }
 
 async function load(){
@@ -806,7 +852,7 @@ async function runRestoreBackup(){
 
 // ── Local JSON backup / restore ──────────────────
 function manualBackupLocal(){
-  const b = new Blob([JSON.stringify({invoices, vendors, holidays, ts: new Date().toISOString()}, null, 2)], {type:'application/json'});
+  const b = new Blob([JSON.stringify({invoices, vendors, holidays, tracks, ts: new Date().toISOString()}, null, 2)], {type:'application/json'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(b);
   a.download = '發票備份_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '') + '.json';
   a.click(); ntf('✓ 備份已下載');
@@ -821,6 +867,7 @@ function restoreLocalBackup(e){
       if(!confirm(`確定還原？將載入 ${d.invoices.length} 筆發票資料`)) return;
       invoices = d.invoices || []; vendors = (d.vendors || DEF_V).map(v => ({tax:'',paydays:'',currency:'',...v}));
       holidays = d.holidays || [...DEF_HOL]; buildHolSet();
+      if(d.tracks) tracks = d.tracks;
       lSave('invoices',invoices); lSave('vendors',vendors); lSave('holidays',holidays);
       saveInvoicesCloud(); saveVendorsCloud(); saveHolidaysCloud();
       renderTable(); updateStats(); renderVendors(); ntf('✓ 備份已還原');
@@ -935,6 +982,7 @@ async function submitForm(){
     currency: getVal('f-currency'),
     paydays:  getVal('f-paydays'),
     invoice:  getVal('f-invoice'),
+    invtype:  document.getElementById('f-invtype')?document.getElementById('f-invtype').textContent.trim():'',
     po:       [...poTags],
     finance:  rgGet('rg-fin'),
     sp:       getVal('f-sp'),
@@ -955,7 +1003,7 @@ async function submitForm(){
 function clearForm(){
   ['f-code','f-date','f-tax','f-currency','f-paydays','f-invoice','f-sp','f-remark','f-finish','f-paydate'].forEach(id => setVal(id,''));
   const d=document.getElementById('f-vd'); d.textContent='— 自動帶入 —'; d.classList.add('empty');
-  document.getElementById('calc-hint').textContent = '';
+  document.getElementById('calc-hint').textContent = ''; const it=document.getElementById('f-invtype'); if(it){it.textContent='—';it.classList.add('empty');};
   poTags=[]; drawPo(); rgSet('rg-fin','— 無');
   editId=null; document.getElementById('submit-btn').textContent='儲存發票'; document.getElementById('form-title').textContent='新增發票';
   // 新增模式：預設帶入今天作為發票日期
@@ -977,12 +1025,12 @@ function editRecord(id){
   setVal('f-currency', r.currency||'');
   setVal('f-paydays',  r.paydays||'');
   setVal('f-date',     r.date||'');
-  setVal('f-invoice',  r.invoice||'');
+  setVal('f-invoice',  r.invoice||''); calcInvType();
   setVal('f-sp',       r.sp||'');
   setVal('f-remark',   r.remark||'');
   setVal('f-finish',   r.finish||'');
   setVal('f-paydate',  r.paydate||'');
-  document.getElementById('calc-hint').textContent = '';
+  document.getElementById('calc-hint').textContent = ''; const it=document.getElementById('f-invtype'); if(it){it.textContent='—';it.classList.add('empty');};
   // 重算預計付款日（確保顯示計算說明）
   if(r.finish && r.currency) calcPayDate();
   poTags = r.po ? [...r.po] : []; drawPo();
@@ -1042,7 +1090,7 @@ function renderTable(){
 
   document.getElementById('tbl-body').innerHTML = paged.length ? paged.map(r => {
     const poH = r.po&&r.po.length ? `<div class="po-list">${r.po.map(p=>`<span class="po-chip">${esc(p)}</span>`).join('')}</div>` : '—';
-    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" data-action="finish" data-id="${r.id}" onfocus="if(!this.value)this.value=new Date().toISOString().slice(0,10);" title="輸入驗收日">`;
+    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" data-id="${r.id}" onchange="window._finishChange(this)" onfocus="if(!this.value)this.value=new Date().toISOString().slice(0,10);" title="輸入驗收日">`;
     const taxB = r.tax ? `<span class="badge b-tax">${esc(r.tax)}</span>` : '—';
     const curB = r.currency ? `<span class="badge ${r.currency==='台幣'?'b-cur-tw':'b-cur-fx'}">${esc(r.currency)}</span>` : '—';
     return `<tr data-row-id="${r.id}">
@@ -1055,8 +1103,8 @@ function renderTable(){
       <td style="white-space:nowrap">${finH}</td>
       <td style="white-space:nowrap;font-weight:600;color:var(--blue)">${r.paydate||'—'}</td>
       <td><div class="ac">
-        <button class="btn xs" data-action="edit" data-id="${r.id}">編輯</button>
-        <button class="btn xs danger" data-action="del" data-id="${r.id}">刪除</button>
+        <button class="btn xs" onclick="window._editRecord('${r.id}')">編輯</button>
+        <button class="btn xs danger" onclick="window._deleteRecord('${r.id}')">刪除</button>
       </div></td>
     </tr>`;
   }).join('') : `<tr><td colspan="10" style="text-align:center;padding:28px;color:var(--tx3)">無符合記錄</td></tr>`;
@@ -1084,34 +1132,19 @@ function toggleFlt(group, val, btn){
   renderTable();
 }
 
-// 事件委派：編輯、刪除、完成日（DOMContentLoaded 確保 DOM 已就緒）
-function _initDelegation(){
-  // 編輯 / 刪除按鈕（document 層級，不受 tbody 重建影響）
-  document.addEventListener('click', function(e){
-    const btn = e.target.closest('[data-action="edit"],[data-action="del"]');
-    if(!btn) return;
-    e.stopPropagation();
-    const id = btn.getAttribute('data-id');
-    const action = btn.getAttribute('data-action');
-    if(action === 'edit') editRecord(id);
-    else if(action === 'del') deleteRecord(id);
-  }, true); // capture phase：確保最先攔截到
-
-  // 完成日：同時監聽 change 和 input（跨瀏覽器相容）
-  function onFinishChange(e){
-    if(!e.target.classList.contains('finish-inp')) return;
-    const id = e.target.getAttribute('data-id');
-    const val = e.target.value;
-    if(id && val) saveFinish(id, val);
-  }
-  document.addEventListener('change', onFinishChange);
-  document.addEventListener('input',  onFinishChange);
-}
-if(document.readyState === 'loading'){
-  document.addEventListener('DOMContentLoaded', _initDelegation);
-} else {
-  _initDelegation();
-}
+// 全域函數：供 renderTable 內的 inline handlers 呼叫
+window._editRecord = function(id){ editRecord(id); };
+window._deleteRecord = function(id){
+  if(!confirm('確定刪除此筆發票？')) return;
+  invoices = invoices.filter(x => x.id !== id);
+  saveInvoicesCloud().catch(()=>{});
+  renderTable(); updateStats(); ntf('✓ 已刪除');
+};
+window._finishChange = function(el){
+  const id = el.getAttribute('data-id');
+  const val = el.value;
+  if(id && val) saveFinish(id, val);
+};
 function updateStats(){
   document.getElementById('m-total').textContent = invoices.length;
   document.getElementById('m-done').textContent  = invoices.filter(r=>r.finish).length;
@@ -1223,7 +1256,80 @@ function addHoliday(){
 }
 function delHoliday(i){ holidays.splice(i,1); renderHolList(); }
 document.getElementById('hol-modal').addEventListener('click', function(e){ if(e.target === this) closeHolModal(); });
+document.getElementById('track-modal').addEventListener('click', function(e){ if(e.target === this) closeTrackModal(); });
 document.getElementById('backup-modal').addEventListener('click', function(e){ if(e.target === this) closeBackup(); });
+
+// ══ INVOICE TRACKS ════════════════════════════════
+// tracks: [{from:'2026-01', to:'2026-02', code:'AA'}, ...]
+let tracks = JSON.parse(localStorage.getItem('inv_tracks') || '[]');
+
+function saveTracksCloud(){
+  localStorage.setItem('inv_tracks', JSON.stringify(tracks));
+  apiPost('saveTracks', tracks).catch(()=>{});
+}
+
+function openTrackModal(){
+  renderTrackList();
+  document.getElementById('track-modal').classList.add('open');
+}
+function closeTrackModal(){ document.getElementById('track-modal').classList.remove('open'); }
+
+function renderTrackList(){
+  document.getElementById('trk-count').textContent = tracks.length;
+  const el = document.getElementById('trk-list');
+  el.innerHTML = tracks.length ? tracks.map((t,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:5px" onmouseover="this.style.background='var(--sf2)'" onmouseout="this.style.background=''">
+      <span style="font-family:'Courier New',monospace;font-size:11px;font-weight:700;color:var(--blue);width:52px">${esc(t.code)}</span>
+      <span style="font-size:11px;color:var(--tx2);flex:1">${esc(t.from)} ～ ${esc(t.to)}</span>
+      <button onclick="delTrack(${i})" style="font-size:10px;cursor:pointer;color:var(--tx3);padding:2px 6px;border:1px solid var(--bd);background:none;border-radius:4px;font-family:inherit" onmouseover="this.style.background='var(--rbg)';this.style.color='var(--rtx)'" onmouseout="this.style.background='';this.style.color='var(--tx3)'">刪除</button>
+    </div>`).join('')
+    : '<div style="text-align:center;padding:16px;color:var(--tx3);font-size:12px">尚無字軌資料</div>';
+}
+
+function addTrack(){
+  const from = document.getElementById('trk-from').value;
+  const to   = document.getElementById('trk-to').value;
+  const code = document.getElementById('trk-code').value.trim().toUpperCase();
+  if(!from){ ntf('請選擇起始年月'); return; }
+  if(!to)  { ntf('請選擇結束年月'); return; }
+  if(!code || code.length !== 2){ ntf('請輸入 2 碼字軌'); return; }
+  if(from > to){ ntf('起始年月不能晚於結束年月'); return; }
+  tracks.push({from, to, code});
+  tracks.sort((a,b)=>a.from.localeCompare(b.from));
+  renderTrackList();
+  document.getElementById('trk-from').value = '';
+  document.getElementById('trk-to').value   = '';
+  document.getElementById('trk-code').value = '';
+  ntf('✓ 字軌已新增（請按儲存）');
+}
+
+function delTrack(i){ tracks.splice(i,1); renderTrackList(); }
+
+// 自動計算發票形式
+function calcInvType(){
+  const dateVal    = getVal('f-date');    // YYYY-MM-DD
+  const invoiceVal = getVal('f-invoice'); // e.g. AA12345678
+  const el = document.getElementById('f-invtype');
+  if(!el) return;
+
+  if(!dateVal || !invoiceVal || invoiceVal.length < 2){
+    el.textContent = '—'; el.classList.add('empty'); return;
+  }
+
+  const yearMonth  = dateVal.slice(0, 7);       // YYYY-MM
+  const prefix     = invoiceVal.slice(0, 2).toUpperCase(); // 前兩碼
+
+  // 找符合的字軌：年月在 from~to 範圍內，且字軌碼相同
+  const matched = tracks.find(t => yearMonth >= t.from && yearMonth <= t.to && t.code === prefix);
+
+  if(matched){
+    el.textContent = '三聯式'; el.classList.remove('empty');
+    el.style.color = 'var(--gtx)'; el.style.fontWeight = '700';
+  } else {
+    el.textContent = '電子'; el.classList.remove('empty');
+    el.style.color = 'var(--btx)'; el.style.fontWeight = '600';
+  }
+}
 
 // ══ EXPORT CSV ═════════════════════════════════════
 function exportCSV(){
