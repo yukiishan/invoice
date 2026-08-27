@@ -171,8 +171,9 @@ tbody td{padding:5px 7px;vertical-align:middle}
 #loadingOv.on{display:flex}
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinner{width:32px;height:32px;border:3px solid var(--bd);border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
-.flt-btn{border:1px solid var(--bd);background:var(--sf2);color:var(--tx2)}
-.flt-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.flt-btn{border:none;background:transparent;color:var(--tx3);cursor:pointer;font-size:11px;padding:2px 8px;border-radius:5px;font-family:inherit;transition:all .15s;white-space:nowrap}
+.flt-btn:hover{background:var(--sf3);color:var(--tx)}
+.flt-btn.active{background:var(--accent);color:#fff}
 </style>
 </head>
 <body>
@@ -247,23 +248,25 @@ tbody td{padding:5px 7px;vertical-align:middle}
 
 <!-- ══ LIST TAB ══ -->
 <div id="tab-list" class="active">
-  <div class="toolbar">
+  <div class="toolbar" style="gap:6px;flex-wrap:wrap">
     <input type="text" id="s-text" placeholder="🔍 搜尋廠商、發票號碼、PO#…" oninput="renderTable()">
-    <select id="s-finish" onchange="renderTable()">
-      <option value="">全部狀態</option>
-      <option value="done">已驗收</option>
-      <option value="pend" selected>待驗收</option>
-    </select>
-    <select id="s-tax" onchange="renderTable()" style="height:26px;font-size:11px;padding:3px 6px;border-radius:var(--r);border:1px solid var(--bd);background:var(--sf2);color:var(--tx);font-family:inherit">
-      <option value="">所有稅別</option>
-      <option value="應稅">應稅</option>
-      <option value="零稅">零稅</option>
-      <option value="免稅">免稅</option>
-    </select>
-    <div style="display:flex;gap:3px;align-items:center">
-      <button class="btn sm flt-btn" data-flt="" onclick="setFlt('',this)">全部</button>
-      <button class="btn sm flt-btn active" data-flt="pend" onclick="setFlt('pend',this)">待驗收</button>
-      <button class="btn sm flt-btn" data-flt="done" onclick="setFlt('done',this)">已驗收</button>
+    <!-- 隱藏的 select 保留供程式用 -->
+    <input type="hidden" id="s-finish" value="pend">
+    <input type="hidden" id="s-tax" value="">
+    <!-- 驗收狀態快速篩選 -->
+    <div style="display:flex;gap:3px;align-items:center;border:1px solid var(--bd);border-radius:var(--r);padding:2px 4px;background:var(--sf2)">
+      <span style="font-size:10px;color:var(--tx3);padding:0 4px 0 2px;white-space:nowrap">驗收</span>
+      <button class="flt-btn flt-finish" data-val="" onclick="toggleFlt('finish','',this)">全部</button>
+      <button class="flt-btn flt-finish active" data-val="pend" onclick="toggleFlt('finish','pend',this)">待驗收</button>
+      <button class="flt-btn flt-finish" data-val="done" onclick="toggleFlt('finish','done',this)">已驗收</button>
+    </div>
+    <!-- 稅別快速篩選 -->
+    <div style="display:flex;gap:3px;align-items:center;border:1px solid var(--bd);border-radius:var(--r);padding:2px 4px;background:var(--sf2)">
+      <span style="font-size:10px;color:var(--tx3);padding:0 4px 0 2px;white-space:nowrap">稅別</span>
+      <button class="flt-btn flt-tax active" data-val="" onclick="toggleFlt('tax','',this)">全部</button>
+      <button class="flt-btn flt-tax" data-val="應稅" onclick="toggleFlt('tax','應稅',this)">應稅</button>
+      <button class="flt-btn flt-tax" data-val="零稅" onclick="toggleFlt('tax','零稅',this)">零稅</button>
+      <button class="flt-btn flt-tax" data-val="免稅" onclick="toggleFlt('tax','免稅',this)">免稅</button>
     </div>
     <div class="spacer"></div>
   </div>
@@ -996,19 +999,29 @@ async function deleteRecord(id){
 
 async function saveFinish(id, val){
   const r = invoices.find(x => x.id === id); if(!r) return;
+  if(!val) return; // 空值不處理
   r.finish = val;
   const cur = String(r.currency || '').trim();
   const pd  = String(r.paydays  || '').trim();
-  if(val && cur){
+  if(cur){
     r.paydate = calcPayDateDirect(val, cur, pd);
-  } else if(val && !cur){
+  } else {
     r.paydate = '';
   }
-  // 先立即更新畫面，不等 API
-  renderTable(); updateStats();
-  if(val && !cur) ntf('⚠ 此發票未設定幣別，無法計算預計付款日');
-  else if(val) ntf('✓ 驗收日與預計付款日已更新');
-  // 背景非同步儲存到雲端
+  // 直接更新 DOM，不重渲整個 table（避免使用者輸入消失）
+  const tr = document.querySelector(`tr[data-row-id="${id}"]`);
+  if(tr){
+    // 完成日欄位：input 換成 badge
+    const inp = tr.querySelector('.finish-inp');
+    if(inp) inp.parentElement.innerHTML = `<span class="badge b-done" style="white-space:nowrap">✓ ${val}</span>`;
+    // 預計付款日欄位（第9個 td，index 8）
+    const tds = tr.querySelectorAll('td');
+    if(tds[8]) { tds[8].textContent = r.paydate || '—'; tds[8].style.color='var(--blue)'; tds[8].style.fontWeight='600'; }
+  }
+  updateStats();
+  if(!cur) ntf('⚠ 此發票未設定幣別，無法計算預計付款日');
+  else ntf('✓ 驗收日：'+ val + '　預計付款日：' + (r.paydate||'—'));
+  // 背景非同步儲存
   saveInvoicesCloud().catch(()=>{});
 }
 
@@ -1029,10 +1042,10 @@ function renderTable(){
 
   document.getElementById('tbl-body').innerHTML = paged.length ? paged.map(r => {
     const poH = r.po&&r.po.length ? `<div class="po-list">${r.po.map(p=>`<span class="po-chip">${esc(p)}</span>`).join('')}</div>` : '—';
-    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" onchange="saveFinish('${r.id}',this.value)" oninput="saveFinish('${r.id}',this.value)" onfocus="if(!this.value)this.value=new Date().toISOString().slice(0,10);" title="輸入驗收日">`;
+    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" data-action="finish" data-id="${r.id}" onfocus="if(!this.value)this.value=new Date().toISOString().slice(0,10);" title="輸入驗收日">`;
     const taxB = r.tax ? `<span class="badge b-tax">${esc(r.tax)}</span>` : '—';
     const curB = r.currency ? `<span class="badge ${r.currency==='台幣'?'b-cur-tw':'b-cur-fx'}">${esc(r.currency)}</span>` : '—';
-    return `<tr>
+    return `<tr data-row-id="${r.id}">
       <td style="font-weight:600">${esc(r.vendor)||'—'}</td>
       <td class="mono">${esc(r.code)}</td>
       <td style="white-space:nowrap">${r.date||'—'}</td>
@@ -1062,22 +1075,29 @@ function renderTable(){
 }
 function gp(p){ curPage=p; renderTable(); }
 
-function setFlt(val, btn){
-  document.querySelectorAll('.flt-btn').forEach(b=>b.classList.remove('active'));
+function toggleFlt(group, val, btn){
+  // 每組獨立 toggle
+  document.querySelectorAll('.flt-'+group).forEach(b=>b.classList.remove('active'));
   if(btn) btn.classList.add('active');
-  const sel = document.getElementById('s-finish');
-  if(sel) sel.value = val;
+  const hidden = document.getElementById('s-'+(group==='finish'?'finish':'tax'));
+  if(hidden) hidden.value = val;
   renderTable();
 }
 
-// 事件委派：處理發票列表的編輯和刪除按鈕
-document.getElementById('tbl-body').addEventListener('click', function(e){
-  const btn = e.target.closest('[data-action]');
+// 事件委派：編輯、刪除、完成日
+document.addEventListener('click', function(e){
+  const btn = e.target.closest('[data-action="edit"],[data-action="del"]');
   if(!btn) return;
   const id = btn.dataset.id;
-  const action = btn.dataset.action;
-  if(action === 'edit') editRecord(id);
-  else if(action === 'del') deleteRecord(id);
+  if(btn.dataset.action === 'edit') editRecord(id);
+  else if(btn.dataset.action === 'del') deleteRecord(id);
+});
+// 完成日 change 用 input 事件委派（最可靠）
+document.addEventListener('change', function(e){
+  if(!e.target.classList.contains('finish-inp')) return;
+  const id = e.target.dataset.id;
+  const val = e.target.value;
+  if(id && val) saveFinish(id, val);
 });
 function updateStats(){
   document.getElementById('m-total').textContent = invoices.length;
@@ -1095,7 +1115,7 @@ function sw(name, btn){
   if(btn) btn.classList.add('active');
   else { const idx={list:0,add:1,vendors:2}[name]; const tabs=document.querySelectorAll('.tab'); if(tabs[idx]) tabs[idx].classList.add('active'); }
   if(name === 'vendors') renderVendors();
-  if(name === 'list'){ renderTable(); updateStats(); }
+  if(name === 'list'){ updateStats(); }
   if(name === 'add' && !editId){ const fd=document.getElementById('f-date'); if(!fd||!fd.value) setVal('f-date', new Date().toISOString().slice(0,10)); }
 }
 
