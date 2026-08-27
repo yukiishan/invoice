@@ -1013,7 +1013,7 @@ function clearForm(){
 function editRecord(id){
   const r = invoices.find(x => x.id === id); if(!r) return;
   editId = id;
-  sw('add', document.querySelectorAll('.tab')[1]);
+  sw('add', null);
   document.getElementById('form-title').textContent = '編輯發票';
   document.getElementById('submit-btn').textContent = '更新發票';
   setVal('f-code', r.code||'');
@@ -1057,7 +1057,11 @@ async function saveFinish(id, val){
     r.paydate = '';
   }
   // 直接更新 DOM，不重渲整個 table（避免使用者輸入消失）
-  const tr = document.querySelector(`tr[data-row-id="${id}"]`);
+  // 用 forEach 避免 querySelector 特殊字元問題
+  let tr = null;
+  document.querySelectorAll('tr[data-row-id]').forEach(el => {
+    if(el.getAttribute('data-row-id') === String(id)) tr = el;
+  });
   if(tr){
     // 完成日欄位：input 換成 badge
     const inp = tr.querySelector('.finish-inp');
@@ -1090,7 +1094,7 @@ function renderTable(){
 
   document.getElementById('tbl-body').innerHTML = paged.length ? paged.map(r => {
     const poH = r.po&&r.po.length ? `<div class="po-list">${r.po.map(p=>`<span class="po-chip">${esc(p)}</span>`).join('')}</div>` : '—';
-    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" data-id="${r.id}" onchange="window._finishChange(this)" onfocus="if(!this.value)this.value=new Date().toISOString().slice(0,10);" title="輸入驗收日">`;
+    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" data-id="${r.id}" onchange="window._finishChange(this)" oninput="window._finishChange(this)" title="輸入驗收日">`;
     const taxB = r.tax ? `<span class="badge b-tax">${esc(r.tax)}</span>` : '—';
     const curB = r.currency ? `<span class="badge ${r.currency==='台幣'?'b-cur-tw':'b-cur-fx'}">${esc(r.currency)}</span>` : '—';
     return `<tr data-row-id="${r.id}">
@@ -1133,7 +1137,7 @@ function toggleFlt(group, val, btn){
 }
 
 // 全域函數：供 renderTable 內的 inline handlers 呼叫
-window._editRecord = function(id){ editRecord(id); };
+window._editRecord = function(id){ console.log('[Invoice] editRecord:', id); editRecord(id); };
 window._deleteRecord = function(id){
   if(!confirm('確定刪除此筆發票？')) return;
   invoices = invoices.filter(x => x.id !== id);
@@ -1143,7 +1147,11 @@ window._deleteRecord = function(id){
 window._finishChange = function(el){
   const id = el.getAttribute('data-id');
   const val = el.value;
-  if(id && val) saveFinish(id, val);
+  if(!id || !val) return;
+  // 防止重複觸發（onchange + oninput 可能都觸發）
+  if(el._lastVal === val) return;
+  el._lastVal = val;
+  saveFinish(id, val);
 };
 function updateStats(){
   document.getElementById('m-total').textContent = invoices.length;
@@ -1154,18 +1162,28 @@ function updateStats(){
 
 // ══ TABS ═══════════════════════════════════════════
 function sw(name, btn){
+  // 切換 tab panel
   document.querySelectorAll('[id^="tab-"]').forEach(e => e.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(e => e.classList.remove('active'));
   const tab = document.getElementById('tab-'+name);
   if(tab) tab.classList.add('active');
-  if(btn) btn.classList.add('active');
-  else { const idx={list:0,add:1,vendors:2}[name]; const tabs=document.querySelectorAll('.tab'); if(tabs[idx]) tabs[idx].classList.add('active'); }
+  // 切換 tab button 樣式
+  document.querySelectorAll('.tab').forEach(e => e.classList.remove('active'));
+  if(btn){
+    btn.classList.add('active');
+  } else {
+    // 用 data-tab 屬性或 onclick 找對應按鈕
+    const allTabs = document.querySelectorAll('.tab');
+    allTabs.forEach(t => {
+      if(t.getAttribute('onclick') && t.getAttribute('onclick').includes("'"+name+"'"))
+        t.classList.add('active');
+    });
+  }
   if(name === 'vendors') renderVendors();
-  if(name === 'list'){ updateStats(); }
+  if(name === 'list'){ renderTable(); updateStats(); }
   if(name === 'add'){
-    const fd=document.getElementById('f-date'); if(!fd||!fd.value) setVal('f-date', new Date().toISOString().slice(0,10));
-    // 自動 focus 代碼欄位（新增模式）或留在當前（編輯模式）
-    setTimeout(()=>{ const fc=document.getElementById('f-code'); if(fc) fc.focus(); }, 80);
+    const fd=document.getElementById('f-date');
+    if(!editId && (!fd || !fd.value)) setVal('f-date', new Date().toISOString().slice(0,10));
+    setTimeout(()=>{ const fc=document.getElementById('f-code'); if(fc && !editId) fc.focus(); }, 80);
   }
 }
 
