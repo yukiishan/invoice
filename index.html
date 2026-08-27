@@ -1191,17 +1191,27 @@ function renderTable(){
       } else {
         const inp=document.createElement('input');
         inp.type='date'; inp.className='finish-inp'; inp.title='輸入驗收日';
-        // onfocus：首次點選時自動帶入今天（方便快速選）
+        // focus：帶入今天但不立刻儲存，讓使用者可以直接確認或改日期
         inp.addEventListener('focus', function(){
           if(!this.value){
             this.value = new Date().toISOString().slice(0,10);
+            // 不在這裡呼叫 saveFinish，等 change 或 blur
           }
         });
+        // change：使用者用日曆選了不同日期時觸發
         inp.addEventListener('change', function(){
           if(!this.value) return;
-          if(this._lastVal === this.value) return;
           this._lastVal = this.value;
-          console.log('[Invoice] saveFinish', r.id, this.value);
+          console.log('[Invoice] saveFinish (change)', r.id, this.value);
+          saveFinish(r.id, this.value);
+        });
+        // blur：使用者離開欄位時，若有值且尚未儲存則儲存
+        // 這是為了處理「focus 帶入今天後，使用者直接按 Tab 離開」的情況
+        inp.addEventListener('blur', function(){
+          if(!this.value) return;
+          if(this._lastVal === this.value) return; // 已由 change 處理過
+          this._lastVal = this.value;
+          console.log('[Invoice] saveFinish (blur)', r.id, this.value);
           saveFinish(r.id, this.value);
         });
         tdF.appendChild(inp);
