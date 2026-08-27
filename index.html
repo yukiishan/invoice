@@ -1028,16 +1028,17 @@ function clearForm(){
 }
 
 function editRecord(id){
-  const r = invoices.find(x => x.id === id); if(!r) return;
+  console.log('[editRecord] start, id:', id, 'found:', !!invoices.find(x=>x.id===id));
+  const r = invoices.find(x => x.id === id);
+  if(!r){ console.warn('[editRecord] record not found!'); return; }
   editId = id;
   sw('add', null);
+  console.log('[editRecord] sw done, tab-add active:', document.getElementById('tab-add')?.classList.contains('active'));
   document.getElementById('form-title').textContent = '編輯發票';
   document.getElementById('submit-btn').textContent = '更新發票';
   setVal('f-code', r.code||'');
-  // 先顯示廠商名稱但不覆蓋欄位
   const vd = document.getElementById('f-vd');
   if(r.vendor){ vd.textContent=r.vendor; vd.classList.remove('empty'); } else { vd.textContent='—'; vd.classList.add('empty'); }
-  // 帶入儲存的值（不重新從廠商主檔帶入，尊重儲存時的設定）
   setVal('f-tax',      r.tax||'');
   setVal('f-currency', r.currency||'');
   setVal('f-paydays',  r.paydays||'');
@@ -1047,12 +1048,14 @@ function editRecord(id){
   setVal('f-remark',   r.remark||'');
   setVal('f-finish',   r.finish||'');
   setVal('f-paydate',  r.paydate||'');
-  document.getElementById('calc-hint').textContent = ''; const it=document.getElementById('f-invtype'); if(it){it.textContent='—';it.classList.add('empty');};
-  // 重算預計付款日（確保顯示計算說明）
+  const it=document.getElementById('f-invtype');
+  if(it){ it.textContent='—'; it.classList.add('empty'); }
+  document.getElementById('calc-hint').textContent = '';
   if(r.finish && r.currency) calcPayDate();
   poTags = r.po ? [...r.po] : []; drawPo();
   rgSet('rg-fin', r.finance||'— 無');
   window.scrollTo(0, 0);
+  console.log('[editRecord] done, form filled');
 }
 
 async function deleteRecord(id){
@@ -1162,9 +1165,16 @@ function renderTable(){
       } else {
         const inp=document.createElement('input');
         inp.type='date'; inp.className='finish-inp'; inp.title='輸入驗收日';
+        // onfocus：首次點選時自動帶入今天（方便快速選）
+        inp.addEventListener('focus', function(){
+          if(!this.value){
+            this.value = new Date().toISOString().slice(0,10);
+          }
+        });
         inp.addEventListener('change', function(){
-          if(!this.value||this._lastVal===this.value) return;
-          this._lastVal=this.value;
+          if(!this.value) return;
+          if(this._lastVal === this.value) return;
+          this._lastVal = this.value;
           console.log('[Invoice] saveFinish', r.id, this.value);
           saveFinish(r.id, this.value);
         });
@@ -1248,28 +1258,32 @@ function updateStats(){
 
 // ══ TABS ═══════════════════════════════════════════
 function sw(name, btn){
+  console.log('[SW] switching to:', name, 'editId:', editId);
   // 切換 tab panel
   document.querySelectorAll('[id^="tab-"]').forEach(e => e.classList.remove('active'));
   const tab = document.getElementById('tab-'+name);
-  if(tab) tab.classList.add('active');
+  if(tab){ tab.classList.add('active'); console.log('[SW] tab panel activated:', tab.id); }
+  else { console.warn('[SW] tab panel not found: tab-'+name); }
   // 切換 tab button 樣式
   document.querySelectorAll('.tab').forEach(e => e.classList.remove('active'));
   if(btn){
     btn.classList.add('active');
   } else {
-    // 用 data-tab 屬性或 onclick 找對應按鈕
-    const allTabs = document.querySelectorAll('.tab');
-    allTabs.forEach(t => {
-      if(t.getAttribute('onclick') && t.getAttribute('onclick').includes("'"+name+"'"))
-        t.classList.add('active');
+    document.querySelectorAll('.tab').forEach(t => {
+      const oc = t.getAttribute('onclick') || '';
+      if(oc.includes("'"+name+"'")) t.classList.add('active');
     });
   }
   if(name === 'vendors') renderVendors();
   if(name === 'list'){ renderTable(); updateStats(); }
   if(name === 'add'){
-    const fd=document.getElementById('f-date');
-    if(!editId && (!fd || !fd.value)) setVal('f-date', new Date().toISOString().slice(0,10));
-    setTimeout(()=>{ const fc=document.getElementById('f-code'); if(fc && !editId) fc.focus(); }, 80);
+    if(!editId){
+      // 新增模式：帶入今天日期
+      const fd=document.getElementById('f-date');
+      if(!fd || !fd.value) setVal('f-date', new Date().toISOString().slice(0,10));
+      setTimeout(()=>{ const fc=document.getElementById('f-code'); if(fc) fc.focus(); }, 80);
+    }
+    // 編輯模式不動日期，不搶焦點
   }
 }
 
