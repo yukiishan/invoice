@@ -2,7 +2,11 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="發票系統">
 <link rel="icon" href="favicon.ico">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="manifest" href="manifest.json">
@@ -174,7 +178,133 @@ tbody td{padding:5px 7px;vertical-align:middle}
 .flt-btn{border:none;background:transparent;color:var(--tx3);cursor:pointer;font-size:11px;padding:2px 8px;border-radius:5px;font-family:inherit;transition:all .15s;white-space:nowrap}
 .flt-btn:hover{background:var(--sf3);color:var(--tx)}
 .flt-btn.active{background:var(--accent);color:#fff}
-</style>
+
+/* ══════════════════════════════════════════════════
+   手機版 RWD（≤768px）
+══════════════════════════════════════════════════ */
+
+/* 底部導覽列 */
+.bottom-nav{
+  display:none;
+  position:fixed;bottom:0;left:0;right:0;
+  background:var(--sf);
+  border-top:1px solid var(--bd);
+  z-index:70;
+  padding-bottom:env(safe-area-inset-bottom);
+  box-shadow:0 -1px 8px rgba(0,0,0,.08);
+}
+.bottom-nav .bn-inner{
+  display:flex;align-items:stretch;height:56px;
+}
+.bn-btn{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;border:none;background:none;color:var(--tx3);
+  font-family:inherit;font-size:10px;cursor:pointer;
+  padding:6px 4px;transition:color .15s;
+  -webkit-tap-highlight-color:transparent;
+}
+.bn-btn.active{color:var(--accent);}
+.bn-btn svg{width:22px;height:22px;flex-shrink:0;}
+.bn-btn span{font-size:10px;font-weight:500;line-height:1;}
+
+/* 手機版頂部簡化 topbar */
+@media (max-width:768px){
+  /* 顯示底部導覽列 */
+  .bottom-nav{display:block;}
+
+  /* topbar 精簡：只保留品牌和右側工具按鈕，隱藏 tab */
+  .topbar{height:44px;padding:0 10px;}
+  .topbar .tabs{display:none;}
+  .brand{font-size:12px;padding-right:8px;margin-right:4px;}
+  .brand small{display:none;}
+  .tb-right{gap:3px;}
+  .tb-right .btn{padding:3px 6px;font-size:10px;}
+  .tb-right span{display:none;}
+
+  /* Tab panels: 高度扣除頂部+底部導覽 */
+  [id^="tab-"].active{height:calc(100vh - 44px - 56px - env(safe-area-inset-bottom));}
+  [id^="tab-"].active{padding-bottom:0;}
+  .content{padding:8px 10px;}
+
+  /* 工具列 */
+  .toolbar{padding:6px 10px;gap:4px;}
+  .toolbar input{min-width:120px;font-size:12px;}
+  .toolbar select{font-size:12px;}
+
+  /* 篩選按鈕組：可橫向捲動 */
+  #tab-list .toolbar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  #tab-list .toolbar::-webkit-scrollbar{display:none;}
+
+  /* 發票列表：手機版用卡片取代表格 */
+  .twrap{overflow:visible;border:none;background:transparent;}
+  .twrap table{display:none;} /* 隱藏 table */
+  .mobile-card-list{display:flex;flex-direction:column;gap:8px;}
+
+  /* 指標卡片縮小 */
+  .sg{grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:8px;}
+  .metric{padding:7px 10px;}
+  .mval{font-size:14px;}
+  .mlbl{font-size:8px;}
+
+  /* 新增發票表單：單欄 */
+  .fgg{gap:10px;}
+  [style*="grid-template-columns:90px 120px"]{
+    grid-template-columns:1fr 1fr !important;
+  }
+  [style*="grid-template-columns:148px 1fr 100px 1fr"]{
+    grid-template-columns:1fr 1fr !important;
+  }
+  [style*="grid-template-columns:148px 148px 1fr 1fr"]{
+    grid-template-columns:1fr 1fr !important;
+  }
+  [style*="grid-template-columns:1fr 1fr"]{
+    grid-template-columns:1fr !important;
+  }
+  [style*="max-width:860px"]{max-width:100% !important;}
+
+  /* 表單 label 大一點 */
+  .fg label{font-size:11px;}
+  .fg input,.fg select{font-size:14px;padding:8px 10px;}
+
+  /* 廠商名稱欄最大寬度放開 */
+  #f-vd{max-width:none !important;}
+
+  /* Modal 全螢幕 */
+  .mk{width:100%;max-height:90vh;border-radius:var(--rl) var(--rl) 0 0;position:fixed;bottom:0;left:0;right:0;margin:0;}
+  .mkov.open{align-items:flex-end;}
+
+  /* 廠商維護 side panel 全寬 */
+  .detov.open{display:block;}
+  .detpanel{max-width:100%;min-height:100%;}
+
+  /* Toast 底部避免被導覽列遮住 */
+  .ntf{bottom:calc(64px + env(safe-area-inset-bottom));right:12px;}
+
+  /* 分頁按鈕 */
+  .pgbtn{padding:5px 10px;font-size:12px;}
+
+  /* vendor edit overlay 全螢幕 */
+  #vendor-ov .detpanel{max-width:100%;}
+}
+
+/* 發票卡片樣式（手機版） */
+.inv-card{
+  background:var(--sf);border:1px solid var(--bd);border-radius:var(--rl);
+  padding:12px 14px;
+}
+.inv-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:8px;}
+.inv-card-vendor{font-weight:700;font-size:14px;color:var(--tx);}
+.inv-card-code{font-family:'Courier New',monospace;font-size:11px;color:var(--tx3);}
+.inv-card-badges{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;}
+.inv-card-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--tx2);margin-bottom:3px;}
+.inv-card-row .label{color:var(--tx3);font-size:11px;}
+.inv-card-row .val{font-weight:500;}
+.inv-card-po{display:flex;flex-wrap:wrap;gap:3px;margin:4px 0;}
+.inv-card-finish{margin-top:8px;padding-top:8px;border-top:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.inv-card-actions{display:flex;gap:6px;}
+.inv-card-date-inp{font-size:13px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:inherit;flex:1;}
+.inv-card-date-inp:focus{outline:none;border-color:var(--blue);}
+</style></style>
 </head>
 <body>
 
@@ -244,6 +374,34 @@ tbody td{padding:5px 7px;vertical-align:middle}
     <button class="btn sm" onclick="openBackup()">☁️ 雲端備份</button>
     <button class="btn sm" onclick="manualBackupLocal()">💾 備份</button>
     <label class="btn sm" style="cursor:pointer" title="還原本機備份">↑ 還原<input type="file" accept=".json" style="display:none" onchange="restoreLocalBackup(event)"></label>
+  </div>
+</div>
+
+<!-- ══ 底部導覽列（手機版）══ -->
+<div class="bottom-nav">
+  <div class="bn-inner">
+    <button class="bn-btn active" id="bn-list" onclick="sw('list',null);_setBnActive('list')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+        <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+      </svg>
+      <span>列表</span>
+    </button>
+    <button class="bn-btn" id="bn-add" onclick="sw('add',null);_setBnActive('add')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="4"/>
+        <line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+      </svg>
+      <span>新增</span>
+    </button>
+    <button class="bn-btn" id="bn-vendors" onclick="sw('vendors',null);_setBnActive('vendors')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+      <span>廠商</span>
+    </button>
   </div>
 </div>
 
@@ -1328,8 +1486,102 @@ function renderTable(){
     pg.appendChild(mkPgBtn('›', curPage+1, curPage===pages, false));
     const sp=document.createElement('span'); sp.className='pginfo'; sp.textContent='共 '+total+' 筆'; pg.appendChild(sp);
   }
+  // 手機版卡片
+  const _mc=document.getElementById('mobile-card-list');
+  if(isMobile()){ if(_mc)_mc.style.display='flex'; renderMobileCards(paged); }
+  else { if(_mc)_mc.style.display='none'; }
 }
 function gp(p){ curPage=p; renderTable(); }
+
+// ── 手機版卡片渲染 ──────────────────────────────
+function isMobile(){ return window.innerWidth <= 768; }
+
+function renderMobileCards(data){
+  // 只在手機版顯示
+  let container = document.getElementById('mobile-card-list');
+  if(!container){
+    container = document.createElement('div');
+    container.id = 'mobile-card-list';
+    container.className = 'mobile-card-list';
+    const twrap = document.querySelector('.twrap');
+    if(twrap) twrap.parentNode.insertBefore(container, twrap.nextSibling);
+  }
+  container.innerHTML = '';
+  if(!data.length){
+    container.innerHTML = '<div style="text-align:center;padding:32px;color:var(--tx3);font-size:13px">無符合記錄</div>';
+    return;
+  }
+  data.forEach(r => {
+    const card = document.createElement('div');
+    card.className = 'inv-card';
+
+    const taxB  = r.tax      ? `<span class="badge b-tax">${esc(r.tax)}</span>` : '';
+    const curB  = r.currency ? `<span class="badge ${r.currency==='台幣'?'b-cur-tw':'b-cur-fx'}">${esc(r.currency)}</span>` : '';
+    const poH   = r.po&&r.po.length ? r.po.map(p=>`<span class="po-chip">${esc(p)}</span>`).join('') : '<span style="color:var(--tx3);font-size:11px">—</span>';
+    const finSection = r.finish
+      ? `<span class="badge b-done">✓ ${r.finish}</span><span style="font-size:12px;color:var(--blue);font-weight:600">${r.paydate||'—'}</span>`
+      : `<input class="inv-card-date-inp" type="date" placeholder="選擇驗收日" data-id="${r.id}"
+           onfocus="if(!this.value)this.value=new Date().toISOString().slice(0,10);"
+           onchange="_cardFinishChange(this)" title="輸入驗收日">
+         <span style="font-size:11px;color:var(--tx3)">預計付款日</span>`;
+
+    card.innerHTML = `
+      <div class="inv-card-top">
+        <div>
+          <div class="inv-card-vendor">${esc(r.vendor)||'—'}</div>
+          <div class="inv-card-code">${esc(r.code)} · ${r.date||'—'}</div>
+        </div>
+        <div class="inv-card-actions">
+          <button class="btn xs" data-edit-id="${r.id}">編輯</button>
+          <button class="btn xs danger" data-del-id="${r.id}">刪除</button>
+        </div>
+      </div>
+      <div class="inv-card-badges">${taxB}${curB}</div>
+      <div class="inv-card-row">
+        <span class="label">發票號碼</span>
+        <span class="val mono">${esc(r.invoice)||'—'}</span>
+      </div>
+      <div class="inv-card-po">${poH}</div>
+      <div class="inv-card-finish">${finSection}</div>
+    `;
+
+    // 綁事件（避免 inline handler CSP 問題）
+    const editBtn = card.querySelector('[data-edit-id]');
+    const delBtn  = card.querySelector('[data-del-id]');
+    if(editBtn) editBtn.addEventListener('click', ()=> editRecord(r.id));
+    if(delBtn)  delBtn.addEventListener('click', ()=>{
+      if(!confirm('確定刪除此筆發票？')) return;
+      invoices = invoices.filter(x => x.id !== r.id);
+      saveInvoicesCloud().catch(()=>{});
+      _listNeedsRefresh = true; renderTable(); updateStats(); ntf('✓ 已刪除');
+    });
+    const dateInp = card.querySelector('.inv-card-date-inp');
+    if(dateInp) dateInp.addEventListener('blur', function(){
+      if(!this.value) return;
+      if(this._lastVal === this.value) return;
+      this._lastVal = this.value;
+      saveFinish(r.id, this.value);
+    });
+
+    container.appendChild(card);
+  });
+}
+
+window._cardFinishChange = function(el){
+  const id = el.getAttribute('data-id');
+  const val = el.value;
+  if(!id||!val) return;
+  if(el._lastVal === val) return;
+  el._lastVal = val;
+  saveFinish(id, val);
+};
+
+// _setBnActive：更新底部導覽列 active 狀態
+function _setBnActive(name){
+  document.querySelectorAll('.bn-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('bn-'+name);
+  if(btn) btn.classList.add('active');
+}
 
 function toggleFlt(group, val, btn){
   // 每組獨立 toggle
@@ -1351,6 +1603,7 @@ function updateStats(){
 // ══ TABS ═══════════════════════════════════════════
 function sw(name, btn){
   console.log('[SW] switching to:', name, 'editId:', editId);
+  _setBnActive(name);
   // 切換 tab panel
   document.querySelectorAll('[id^="tab-"]').forEach(e => e.classList.remove('active'));
   const tab = document.getElementById('tab-'+name);
@@ -1596,6 +1849,7 @@ function exportCSV(){
 }
 
 // ══ INIT ═══════════════════════════════════════════
+window.addEventListener('resize',()=>{ clearTimeout(window._rt); window._rt=setTimeout(renderTable,200); });
 _TOKEN = sessionStorage.getItem('inv_token') || '';
 if(checkAuth()){
   document.getElementById('ls').style.display = 'none';
