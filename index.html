@@ -627,12 +627,32 @@ function _handleExpiry(){
   }, 100);
 }
 
+function _checkSessionExpiry(){
+  if(!_TOKEN || !sessionStorage.getItem(SESSION_KEY)) return;
+  const loginTime = Number(sessionStorage.getItem('inv_login_time') || 0);
+  if(!loginTime){ console.warn('[Auth] no login_time, skip'); return; }
+  const elapsed   = Date.now() - loginTime;
+  const remaining = SESSION_TTL - elapsed;
+  const nowStr    = new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+  if(remaining > 0){
+    console.log('[Auth]', nowStr, '剩餘', Math.ceil(remaining/60000), '分鐘');
+  }
+  if(elapsed >= SESSION_TTL){
+    console.log('[Auth] 登入逾時，自動登出');
+    _handleExpiry();
+  }
+}
 function _startHeartbeat(){
   _stopHeartbeat();
-  _heartbeatTimer = setInterval(() => {
-    const t = Number(sessionStorage.getItem('inv_login_time') || 0);
-    if(t && Date.now() - t >= SESSION_TTL) _handleExpiry();
-  }, 60000);
+  const loginTime = Number(sessionStorage.getItem('inv_login_time') || 0);
+  if(!loginTime){ console.warn('[Auth] no login_time, skip heartbeat'); return; }
+  const elapsed   = Date.now() - loginTime;
+  const remaining = SESSION_TTL - elapsed;
+  if(remaining <= 0){ _handleExpiry(); return; }
+  const loginStr  = new Date(loginTime).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+  const expireStr = new Date(loginTime + SESSION_TTL).toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+  console.log('[Auth] 登入時間', loginStr, '→ 預計登出', expireStr, '（剩', Math.ceil(remaining/60000), '分鐘）');
+  _heartbeatTimer = setInterval(_checkSessionExpiry, 60 * 1000);
   document.addEventListener('visibilitychange', _onVis);
 }
 function _stopHeartbeat(){
@@ -640,10 +660,7 @@ function _stopHeartbeat(){
   document.removeEventListener('visibilitychange', _onVis);
 }
 function _onVis(){
-  if(document.visibilityState === 'visible'){
-    const t = Number(sessionStorage.getItem('inv_login_time') || 0);
-    if(t && Date.now() - t >= SESSION_TTL) _handleExpiry();
-  }
+  if(document.visibilityState === 'visible') _checkSessionExpiry();
 }
 
 // keyboard adjustment for mobile login
@@ -1078,9 +1095,17 @@ async function saveFinish(id, val){
 }
 
 // ══ TABLE ══════════════════════════════════════════
+function _makeCell(content, style){
+  const td = document.createElement('td');
+  if(style) td.style.cssText = style;
+  if(typeof content === 'string') td.innerHTML = content;
+  else if(content instanceof Node) td.appendChild(content);
+  return td;
+}
+
 function renderTable(){
-  const q  = document.getElementById('s-text').value.toLowerCase();
-  const sf = document.getElementById('s-finish').value;
+  const q    = document.getElementById('s-text').value.toLowerCase();
+  const sf   = document.getElementById('s-finish').value;
   const stax = (document.getElementById('s-tax')||{}).value || '';
   const data = invoices.filter(r => {
     const ms = !q || [r.vendor,r.code,r.invoice,...(r.po||[]),r.remark,r.sp].join(' ').toLowerCase().includes(q);
@@ -1092,38 +1117,115 @@ function renderTable(){
   if(curPage > pages) curPage = 1;
   const paged = data.slice((curPage-1)*PS, curPage*PS);
 
-  document.getElementById('tbl-body').innerHTML = paged.length ? paged.map(r => {
-    const poH = r.po&&r.po.length ? `<div class="po-list">${r.po.map(p=>`<span class="po-chip">${esc(p)}</span>`).join('')}</div>` : '—';
-    const finH = r.finish ? `<span class="badge b-done">✓ ${r.finish}</span>` : `<input class="finish-inp" type="date" data-id="${r.id}" onchange="window._finishChange(this)" oninput="window._finishChange(this)" title="輸入驗收日">`;
-    const taxB = r.tax ? `<span class="badge b-tax">${esc(r.tax)}</span>` : '—';
-    const curB = r.currency ? `<span class="badge ${r.currency==='台幣'?'b-cur-tw':'b-cur-fx'}">${esc(r.currency)}</span>` : '—';
-    return `<tr data-row-id="${r.id}">
-      <td style="font-weight:600">${esc(r.vendor)||'—'}</td>
-      <td class="mono">${esc(r.code)}</td>
-      <td style="white-space:nowrap">${r.date||'—'}</td>
-      <td>${taxB}</td><td>${curB}</td>
-      <td class="mono">${esc(r.invoice)||'—'}</td>
-      <td>${poH}</td>
-      <td style="white-space:nowrap">${finH}</td>
-      <td style="white-space:nowrap;font-weight:600;color:var(--blue)">${r.paydate||'—'}</td>
-      <td><div class="ac">
-        <button class="btn xs" onclick="window._editRecord('${r.id}')">編輯</button>
-        <button class="btn xs danger" onclick="window._deleteRecord('${r.id}')">刪除</button>
-      </div></td>
-    </tr>`;
-  }).join('') : `<tr><td colspan="10" style="text-align:center;padding:28px;color:var(--tx3)">無符合記錄</td></tr>`;
+  const tbody = document.getElementById('tbl-body');
+  tbody.innerHTML = '';
 
-  // Pagination
-  const pg = document.getElementById('pgbar');
-  if(pages <= 1){ pg.innerHTML = `<span class="pginfo">共 ${total} 筆</span>`; return; }
-  let h = `<button class="pgbtn" onclick="gp(${curPage-1})" ${curPage===1?'disabled':''}>‹</button>`;
-  for(let i=1;i<=pages;i++){
-    if(i===1||i===pages||Math.abs(i-curPage)<=2) h += `<button class="pgbtn ${i===curPage?'on':''}" onclick="gp(${i})">${i}</button>`;
-    else if(Math.abs(i-curPage)===3) h += `<span style="color:var(--tx3);padding:0 2px">…</span>`;
+  if(!paged.length){
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 10; td.style.cssText = 'text-align:center;padding:28px;color:var(--tx3)';
+    td.textContent = '無符合記錄'; tr.appendChild(td); tbody.appendChild(tr);
+  } else {
+    paged.forEach(r => {
+      const tr = document.createElement('tr');
+      tr.dataset.rowId = r.id;
+
+      // 廠商
+      const tdV = document.createElement('td');
+      tdV.style.fontWeight='600'; tdV.textContent = r.vendor||'—'; tr.appendChild(tdV);
+      // 代碼
+      const tdC = document.createElement('td');
+      tdC.className='mono'; tdC.textContent=r.code||'—'; tr.appendChild(tdC);
+      // 日期
+      const tdD = document.createElement('td');
+      tdD.style.whiteSpace='nowrap'; tdD.textContent=r.date||'—'; tr.appendChild(tdD);
+      // 稅別
+      const tdT = document.createElement('td');
+      if(r.tax){ const sp=document.createElement('span'); sp.className='badge b-tax'; sp.textContent=r.tax; tdT.appendChild(sp); } else tdT.textContent='—';
+      tr.appendChild(tdT);
+      // 幣別
+      const tdCur = document.createElement('td');
+      if(r.currency){ const sp=document.createElement('span'); sp.className='badge '+(r.currency==='台幣'?'b-cur-tw':'b-cur-fx'); sp.textContent=r.currency; tdCur.appendChild(sp); } else tdCur.textContent='—';
+      tr.appendChild(tdCur);
+      // 發票號碼
+      const tdI = document.createElement('td');
+      tdI.className='mono'; tdI.textContent=r.invoice||'—'; tr.appendChild(tdI);
+      // PO#
+      const tdP = document.createElement('td');
+      if(r.po&&r.po.length){ const dl=document.createElement('div'); dl.className='po-list'; r.po.forEach(p=>{ const sp=document.createElement('span'); sp.className='po-chip'; sp.textContent=p; dl.appendChild(sp); }); tdP.appendChild(dl); } else tdP.textContent='—';
+      tr.appendChild(tdP);
+      // 完成日
+      const tdF = document.createElement('td');
+      tdF.style.whiteSpace='nowrap';
+      if(r.finish){
+        const sp=document.createElement('span'); sp.className='badge b-done'; sp.textContent='✓ '+r.finish; tdF.appendChild(sp);
+      } else {
+        const inp=document.createElement('input');
+        inp.type='date'; inp.className='finish-inp'; inp.title='輸入驗收日';
+        inp.addEventListener('change', function(){
+          if(!this.value||this._lastVal===this.value) return;
+          this._lastVal=this.value;
+          console.log('[Invoice] saveFinish', r.id, this.value);
+          saveFinish(r.id, this.value);
+        });
+        tdF.appendChild(inp);
+      }
+      tr.appendChild(tdF);
+      // 預計付款日
+      const tdPay = document.createElement('td');
+      tdPay.style.cssText='white-space:nowrap;font-weight:600;color:var(--blue)';
+      tdPay.textContent=r.paydate||'—'; tr.appendChild(tdPay);
+      // 操作
+      const tdAc = document.createElement('td');
+      const div  = document.createElement('div'); div.className='ac';
+      const btnE = document.createElement('button');
+      btnE.className='btn xs'; btnE.textContent='編輯';
+      btnE.addEventListener('click', function(e){
+        e.preventDefault(); e.stopPropagation();
+        console.log('[Invoice] editRecord', r.id);
+        editRecord(r.id);
+      });
+      const btnD = document.createElement('button');
+      btnD.className='btn xs danger'; btnD.textContent='刪除';
+      btnD.addEventListener('click', function(e){
+        e.preventDefault(); e.stopPropagation();
+        console.log('[Invoice] deleteRecord', r.id);
+        if(!confirm('確定刪除此筆發票？')) return;
+        invoices = invoices.filter(x => x.id !== r.id);
+        saveInvoicesCloud().catch(()=>{});
+        renderTable(); updateStats(); ntf('✓ 已刪除');
+      });
+      div.appendChild(btnE); div.appendChild(btnD); tdAc.appendChild(div); tr.appendChild(tdAc);
+
+      tbody.appendChild(tr);
+    });
   }
-  h += `<button class="pgbtn" onclick="gp(${curPage+1})" ${curPage===pages?'disabled':''}>›</button>`;
-  h += `<span class="pginfo">共 ${total} 筆</span>`;
-  pg.innerHTML = h;
+
+  // Pagination（用 DOM API 避免 innerHTML onclick 問題）
+  const pg = document.getElementById('pgbar');
+  pg.innerHTML = '';
+  if(pages <= 1){
+    const sp=document.createElement('span'); sp.className='pginfo'; sp.textContent='共 '+total+' 筆'; pg.appendChild(sp);
+  } else {
+    const mkPgBtn = (label, page, disabled, active) => {
+      const b = document.createElement('button');
+      b.className = 'pgbtn' + (active?' on':'');
+      b.textContent = label; b.disabled = !!disabled;
+      b.addEventListener('click', ()=>{ curPage=page; renderTable(); });
+      return b;
+    };
+    pg.appendChild(mkPgBtn('‹', curPage-1, curPage===1, false));
+    let last=-1;
+    for(let i=1;i<=pages;i++){
+      if(i===1||i===pages||Math.abs(i-curPage)<=2){
+        if(last>0 && i-last>1){ const sp=document.createElement('span'); sp.style.cssText='color:var(--tx3);padding:0 2px'; sp.textContent='…'; pg.appendChild(sp); }
+        pg.appendChild(mkPgBtn(String(i), i, false, i===curPage));
+        last=i;
+      }
+    }
+    pg.appendChild(mkPgBtn('›', curPage+1, curPage===pages, false));
+    const sp=document.createElement('span'); sp.className='pginfo'; sp.textContent='共 '+total+' 筆'; pg.appendChild(sp);
+  }
 }
 function gp(p){ curPage=p; renderTable(); }
 
@@ -1136,23 +1238,7 @@ function toggleFlt(group, val, btn){
   renderTable();
 }
 
-// 全域函數：供 renderTable 內的 inline handlers 呼叫
-window._editRecord = function(id){ console.log('[Invoice] editRecord:', id); editRecord(id); };
-window._deleteRecord = function(id){
-  if(!confirm('確定刪除此筆發票？')) return;
-  invoices = invoices.filter(x => x.id !== id);
-  saveInvoicesCloud().catch(()=>{});
-  renderTable(); updateStats(); ntf('✓ 已刪除');
-};
-window._finishChange = function(el){
-  const id = el.getAttribute('data-id');
-  const val = el.value;
-  if(!id || !val) return;
-  // 防止重複觸發（onchange + oninput 可能都觸發）
-  if(el._lastVal === val) return;
-  el._lastVal = val;
-  saveFinish(id, val);
-};
+// 事件處理改用 renderTable 內直接綁定 DOM（見 renderTable）
 function updateStats(){
   document.getElementById('m-total').textContent = invoices.length;
   document.getElementById('m-done').textContent  = invoices.filter(r=>r.finish).length;
