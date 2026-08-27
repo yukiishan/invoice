@@ -306,7 +306,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
       <div class="fgg" style="grid-template-columns:90px 120px 1fr 110px">
         <div class="fg">
           <label>代碼 Code <span style="color:var(--red)">*</span></label>
-          <input type="text" id="f-code" placeholder="DE06" maxlength="6"
+          <input type="text" id="f-code" placeholder="DE06" maxlength="6" tabindex="1"
             oninput="this.value=this.value.toUpperCase();lookupVendor(true)"
             style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;letter-spacing:.08em">
         </div>
@@ -316,7 +316,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
         </div>
         <div class="fg">
           <label>付款時間（天）</label>
-          <input type="number" id="f-paydays" min="0" placeholder="30" oninput="calcPayDate()">
+          <input type="number" id="f-paydays" min="0" placeholder="30" tabindex="-1" oninput="calcPayDate()">
         </div>
       </div>
 
@@ -324,11 +324,11 @@ tbody td{padding:5px 7px;vertical-align:middle}
       <div class="fgg" style="grid-template-columns:148px 1fr 100px 1fr">
         <div class="fg">
           <label>發票日期 <span style="color:var(--red)">*</span></label>
-          <input type="date" id="f-date" onchange="calcInvType()">
+          <input type="date" id="f-date" tabindex="-1" onchange="calcInvType()">
         </div>
         <div class="fg">
           <label>發票號碼 Invoice#</label>
-          <input type="text" id="f-invoice" placeholder="YY05184726"
+          <input type="text" id="f-invoice" placeholder="YY05184726" tabindex="2"
             oninput="this.value=this.value.toUpperCase();calcInvType()"
             style="font-family:'Courier New',monospace">
         </div>
@@ -339,7 +339,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
         <div class="fg">
           <label>PO# <span style="font-size:9px;color:var(--tx3);text-transform:none;font-weight:400">(Enter 或逗號新增多筆)</span></label>
           <div class="po-wrap" id="po-wrap" onclick="document.getElementById('po-inp').focus()">
-            <input class="po-input" id="po-inp" placeholder="LMTL-613059" onkeydown="poKey(event)" oninput="poComma(event)">
+            <input class="po-input" id="po-inp" placeholder="LMTL-613059" tabindex="3" onkeydown="poKey(event)" oninput="poComma(event)">
           </div>
         </div>
       </div>
@@ -1042,7 +1042,7 @@ function clearForm(){
   if(cancelBtn) cancelBtn.style.display='none';
   if(clearBtn) clearBtn.style.display='';
   // 新增模式：預設帶入今天作為發票日期
-  if(!editId) setVal('f-date', new Date().toISOString().slice(0,10));
+  if(!editId){ const yd=new Date(); yd.setDate(yd.getDate()-1); setVal('f-date', yd.toISOString().slice(0,10)); }
 }
 
 function editRecord(id){
@@ -1317,9 +1317,12 @@ function sw(name, btn){
   }
   if(name === 'add'){
     if(!editId){
-      // 新增模式：帶入今天日期
+      // 新增模式：帶入昨天日期
       const fd=document.getElementById('f-date');
-      if(!fd || !fd.value) setVal('f-date', new Date().toISOString().slice(0,10));
+      if(!fd || !fd.value){
+        const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+        setVal('f-date', yesterday.toISOString().slice(0,10));
+      }
       setTimeout(()=>{ const fc=document.getElementById('f-code'); if(fc) fc.focus(); }, 80);
     }
     // 編輯模式不動日期，不搶焦點
@@ -1431,13 +1434,44 @@ function openTrackModal(){
 }
 function closeTrackModal(){ document.getElementById('track-modal').classList.remove('open'); }
 
+// 把字軌的 from/to 統一成 YYYY-MM 格式（防止 Sheets 讀回來變成 Date 字串）
+function normTrackMonth(v){
+  if(!v) return '';
+  const s = String(v).trim();
+  // 已是 YYYY-MM 格式
+  if(/^\d{4}-\d{2}$/.test(s)) return s;
+  // input[type=month] 在某些瀏覽器會給 YYYY-MM 或 YYYY-MM-DD
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s.slice(0,7);
+  // Google Sheets 讀回來可能是完整 Date 字串，用 UTC 解析避免時區偏移
+  try {
+    const d = new Date(s);
+    if(!isNaN(d)){
+      // 用 toLocaleDateString 取台灣時間的年月
+      const tw = new Date(d.getTime() + (8*60*60*1000)); // UTC+8
+      return tw.getUTCFullYear()+'-'+String(tw.getUTCMonth()+1).padStart(2,'0');
+    }
+  } catch(e){}
+  return s;
+}
+
+// 顯示用格式：YYYY/MM/01 ~ YYYY/MM/最後一天
+function fmtTrackRange(fromYM, toYM){
+  if(!fromYM || !toYM) return fromYM + ' ～ ' + toYM;
+  const [fy,fm] = fromYM.split('-').map(Number);
+  const [ty,tm] = toYM.split('-').map(Number);
+  // 計算結束月最後一天
+  const lastDay = new Date(ty, tm, 0).getDate(); // new Date(year, month, 0) = 上個月最後一天
+  return `${fy}/${String(fm).padStart(2,'0')}/01 GMT+8 ～ ${ty}/${String(tm).padStart(2,'0')}/${lastDay} GMT+8`;
+}
 function renderTrackList(){
+  // 先把 tracks 的 from/to 格式化
+  tracks = tracks.map(t => ({...t, from: normTrackMonth(t.from), to: normTrackMonth(t.to)}));
   document.getElementById('trk-count').textContent = tracks.length;
   const el = document.getElementById('trk-list');
   el.innerHTML = tracks.length ? tracks.map((t,i)=>`
     <div style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:5px" onmouseover="this.style.background='var(--sf2)'" onmouseout="this.style.background=''">
       <span style="font-family:'Courier New',monospace;font-size:11px;font-weight:700;color:var(--blue);width:52px">${esc(t.code)}</span>
-      <span style="font-size:11px;color:var(--tx2);flex:1">${esc(t.from)} ～ ${esc(t.to)}</span>
+      <span style="font-size:11px;color:var(--tx2);flex:1">${fmtTrackRange(esc(t.from), esc(t.to))}</span>
       <button onclick="delTrack(${i})" style="font-size:10px;cursor:pointer;color:var(--tx3);padding:2px 6px;border:1px solid var(--bd);background:none;border-radius:4px;font-family:inherit" onmouseover="this.style.background='var(--rbg)';this.style.color='var(--rtx)'" onmouseout="this.style.background='';this.style.color='var(--tx3)'">刪除</button>
     </div>`).join('')
     : '<div style="text-align:center;padding:16px;color:var(--tx3);font-size:12px">尚無字軌資料</div>';
@@ -1451,7 +1485,7 @@ function addTrack(){
   if(!to)  { ntf('請選擇結束年月'); return; }
   if(!code || code.length !== 2){ ntf('請輸入 2 碼字軌'); return; }
   if(from > to){ ntf('起始年月不能晚於結束年月'); return; }
-  tracks.push({from, to, code});
+  tracks.push({from: normTrackMonth(from), to: normTrackMonth(to), code});
   tracks.sort((a,b)=>a.from.localeCompare(b.from));
   renderTrackList();
   document.getElementById('trk-from').value = '';
@@ -1477,7 +1511,14 @@ function calcInvType(){
   const prefix     = invoiceVal.slice(0, 2).toUpperCase(); // 前兩碼
 
   // 找符合的字軌：年月在 from~to 範圍內，且字軌碼相同
-  const matched = tracks.find(t => yearMonth >= t.from && yearMonth <= t.to && t.code === prefix);
+  const matched = tracks.find(t => {
+    const f = normTrackMonth(t.from);
+    const e = normTrackMonth(t.to);
+    const codeMatch  = t.code.toUpperCase() === prefix;
+    const rangeMatch = yearMonth >= f && yearMonth <= e;
+    console.log('[calcInvType] track:', t.code, f, '~', e, '| invoice:', yearMonth, prefix, '| code:', codeMatch, 'range:', rangeMatch);
+    return codeMatch && rangeMatch;
+  });
 
   if(matched){
     el.textContent = '三聯式'; el.classList.remove('empty');
