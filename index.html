@@ -299,7 +299,14 @@ tbody td{padding:5px 7px;vertical-align:middle}
     <div style="background:var(--sf);border:1px solid var(--bd);border-radius:var(--rl);padding:16px 18px;max-width:860px;margin:0 auto">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:5px;border-bottom:1px solid var(--bd)">
         <div class="sechd" id="form-title" style="margin:0;padding:0;border:none">新增發票</div>
-        <button class="btn sm" id="clear-btn" onclick="clearForm()" style="font-size:11px">清除</button>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="btn danger sm" id="form-del-btn" onclick="deleteFromForm()"
+            style="display:none;font-size:11px">🗑 刪除發票</button>
+          <button class="btn sm" id="continuous-btn" onclick="toggleContinuous()"
+            title="開啟後儲存不跳轉，繼續輸入下一筆"
+            style="font-size:11px;transition:all .15s">連續開立</button>
+          <button class="btn sm" id="clear-btn" onclick="clearForm()" style="font-size:11px">清除</button>
+        </div>
       </div>
 
       <!-- Row 1: 代碼 | 廠商名稱 | 付款時間 -->
@@ -711,6 +718,7 @@ let holSet = new Set();
 let editId = null, poTags = [], curPage = 1, vpEditCode = null;
 const PS = 25;
 let _listNeedsRefresh = true; // 控制 sw('list') 是否重渲
+let _continuous = false;        // 連續開立模式
 
 const DEF_V = [
   {code:'VE07',name:'格瑞',tax:'',paydays:'',currency:''},{code:'DH09',name:'大驤五金',tax:'',paydays:'',currency:''},
@@ -992,6 +1000,7 @@ function rgSet(id,v){ document.getElementById(id).querySelectorAll('.rb').forEac
 
 // ══ FORM ═══════════════════════════════════════════
 async function submitForm(){
+  const editId_was = editId; // 記住是否為編輯模式
   const code=getVal('f-code').toUpperCase(), date=getVal('f-date');
   if(!code){ ntf('請輸入廠商代碼'); return; }
   if(!date){ ntf('請選擇發票日期'); return; }
@@ -1015,10 +1024,49 @@ async function submitForm(){
   if(editId){ const i=invoices.findIndex(x=>x.id===editId); if(i>-1) invoices[i]=rec; editId=null; }
   else invoices.unshift(rec);
   // 先更新畫面，背景儲存
-  _listNeedsRefresh=true; clearForm(); renderTable(); updateStats();
-  sw('list', document.querySelector('.tab'));
+  _listNeedsRefresh=true; renderTable(); updateStats();
   ntf('✓ 發票已儲存（同步中...）');
   saveInvoicesCloud().then(()=>ntf('✓ 發票已儲存')).catch(()=>ntf('⚠ 儲存失敗，請檢查網路'));
+  if(_continuous && !editId_was){
+    // 連續開立：清表單後留在此頁，focus 代碼欄
+    clearForm();
+    setTimeout(()=>{ const fc=document.getElementById('f-code'); if(fc) fc.focus(); }, 80);
+  } else {
+    clearForm();
+    sw('list', null);
+  }
+}
+
+function toggleContinuous(){
+  _continuous = !_continuous;
+  const btn = document.getElementById('continuous-btn');
+  if(btn){
+    if(_continuous){
+      btn.style.background = 'var(--accent)';
+      btn.style.color = '#fff';
+      btn.style.borderColor = 'var(--accent)';
+      btn.title = '已開啟連續開立（儲存後留在此頁面）';
+    } else {
+      btn.style.background = '';
+      btn.style.color = '';
+      btn.style.borderColor = '';
+      btn.title = '開啟後儲存不跳轉，繼續輸入下一筆';
+    }
+  }
+  ntf(_continuous ? '✓ 連續開立已開啟' : '連續開立已關閉');
+}
+
+function deleteFromForm(){
+  if(!editId){ ntf('請先進入編輯模式'); return; }
+  const r = invoices.find(x => x.id === editId);
+  const label = r ? (r.vendor||r.code||editId) : editId;
+  if(!confirm(`確定刪除發票「${label}」？此動作無法復原。`)) return;
+  invoices = invoices.filter(x => x.id !== editId);
+  saveInvoicesCloud().catch(()=>{});
+  _listNeedsRefresh = true;
+  clearForm();
+  sw('list', null);
+  ntf('✓ 發票已刪除');
 }
 
 function cancelEdit(){
@@ -1039,8 +1087,12 @@ function clearForm(){
   // 按鈕顯示控制
   const cancelBtn=document.getElementById('cancel-btn');
   const clearBtn=document.getElementById('clear-btn');
+  const formDelBtn=document.getElementById('form-del-btn');
+  const continuousBtn=document.getElementById('continuous-btn');
   if(cancelBtn) cancelBtn.style.display='none';
   if(clearBtn) clearBtn.style.display='';
+  if(formDelBtn) formDelBtn.style.display='none';
+  if(continuousBtn) continuousBtn.style.display='';
   // 新增模式：預設帶入今天作為發票日期
   if(!editId){ const yd=new Date(); yd.setDate(yd.getDate()-1); setVal('f-date', yd.toISOString().slice(0,10)); }
 }
@@ -1073,11 +1125,15 @@ function editRecord(id){
   poTags = r.po ? [...r.po] : []; drawPo();
   rgSet('rg-fin', r.finance||'— 無');
   window.scrollTo(0, 0);
-  // 編輯模式：顯示「取消更新」，隱藏「清除」
+  // 編輯模式：顯示「取消更新」+「刪除」，隱藏「清除」和「連續開立」
   const cancelBtn=document.getElementById('cancel-btn');
   const clearBtn=document.getElementById('clear-btn');
+  const formDelBtn=document.getElementById('form-del-btn');
+  const continuousBtn=document.getElementById('continuous-btn');
   if(cancelBtn) cancelBtn.style.display='';
   if(clearBtn) clearBtn.style.display='none';
+  if(formDelBtn) formDelBtn.style.display='';
+  if(continuousBtn) continuousBtn.style.display='none';
   console.log('[editRecord] done, form filled');
 }
 
