@@ -44,6 +44,11 @@
     - 發票列表移除分頁機制，改為一次列出全部符合條件的資料，靠捲動瀏覽
     - 發票列表欄位順序調整為：代碼／廠商／發票日期／發票號碼／幣別／
       稅別／PO#／完成日（驗收日）／預計付款日／操作
+
+  v1.5  2026-08-28
+    - 新增發票 PO# 欄位：比照代碼、發票號碼，輸入時即時強制轉為大寫（保留
+      游標位置，不影響 -／* 開頭自動補上 LMTL-／FMTL- 前綴的邏輯）；已複查
+      確認代碼、發票號碼欄位本來就有強制大寫，行為不變
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -1109,13 +1114,24 @@ function showLoading(on){ const el=document.getElementById('loadingOv'); if(el) 
 
 // ══ PO TAGS ════════════════════════════════════════
 function poKey(e){ if(e.key==='Enter'||e.key===','){ e.preventDefault(); addPo(e.target.value.trim()); e.target.value=''; } else if(e.key==='Backspace'&&e.target.value===''&&poTags.length){ poTags.pop(); drawPo(); } }
-function poComma(e){ if(e.target.value.includes(',')){ const p=e.target.value.split(','); p.slice(0,-1).forEach(x=>addPo(x.trim())); e.target.value=p[p.length-1]; } }
+function poComma(e){
+  // PO# 輸入框：即時強制轉大寫（同代碼／發票號碼欄位），保留游標位置
+  const el = e.target;
+  const s = el.selectionStart;
+  const before = el.value;
+  const upper = before.toUpperCase();
+  if(upper !== before){
+    el.value = upper;
+    try{ el.setSelectionRange(s, s); }catch(err){}
+  }
+  if(el.value.includes(',')){ const p=el.value.split(','); p.slice(0,-1).forEach(x=>addPo(x.trim())); el.value=p[p.length-1]; }
+}
 function normalizePo(v){
   if(!v) return v;
   v = v.trim();
-  if(v.startsWith('-')) return 'LMTL' + v;   // -682152B → LMTL-682152B
-  if(v.startsWith('*')) return 'FMTL-' + v.slice(1); // *682152B → FMTL-682152B
-  return v;
+  if(v.startsWith('-')) v = 'LMTL' + v;   // -682152B → LMTL-682152B
+  else if(v.startsWith('*')) v = 'FMTL-' + v.slice(1); // *682152B → FMTL-682152B
+  return v.toUpperCase(); // 保險：無論來源（輸入框即時轉換、貼上、Enter 送出）一律強制大寫
 }
 function addPo(v){ v=normalizePo(v); if(v&&!poTags.includes(v)){ poTags.push(v); drawPo(); } }
 function rmPo(i){ poTags.splice(i,1); drawPo(); }
