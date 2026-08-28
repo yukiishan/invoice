@@ -64,6 +64,15 @@
       立刻觸發儲存，導致存成錯誤日期且無法繼續輸入第二碼；改為短暫防抖，
       停止輸入後才真正送出，欄位失焦時則立刻用當下的值送出
     - 點選完成日欄位時，預設帶入的日期改為「昨天」（原本為今天）
+
+  v1.9  2026-08-28
+    - 修正發票形式自動判斷「失效」的問題：發票列表／付款管理原本只讀取
+      新增發票當下存的 invtype 欄位，舊資料沒有這個欄位就整欄空白；現在
+      改為優先依每筆資料的發票日期＋發票號碼即時判斷（跟新增發票表單同一
+      套邏輯），沒有資料才顯示 —，新增發票表單本身的即時判斷不受影響
+    - 付款管理欄位順序調整為：代碼／廠商／發票日期／發票號碼／PO#／
+      發票形式／幣別／稅別／完成日（驗收日）／預計付款日／備註／付款狀態，
+      並新增 PO# 與發票形式欄位
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -606,7 +615,8 @@ tbody td{padding:5px 7px;vertical-align:middle}
       <table>
         <thead>
           <tr>
-            <th>代碼</th><th>廠商</th><th>發票號碼</th><th>發票日期</th><th>幣別</th><th>稅別</th>
+            <th>代碼</th><th>廠商</th><th>發票日期</th><th>發票號碼</th><th>PO#</th>
+            <th>發票形式</th><th>幣別</th><th>稅別</th>
             <th>完成日（驗收日）</th><th>預計付款日</th><th>備註</th><th>付款狀態</th>
           </tr>
         </thead>
@@ -1396,9 +1406,11 @@ function renderTable(){
       const tdP = document.createElement('td');
       if(r.po&&r.po.length){ const dl=document.createElement('div'); dl.className='po-list'; r.po.forEach(p=>{ const sp=document.createElement('span'); sp.className='po-chip'; sp.textContent=p; dl.appendChild(sp); }); tdP.appendChild(dl); } else tdP.textContent='—';
       tr.appendChild(tdP);
-      // 發票形式
+      // 發票形式（優先依日期＋發票號碼即時判斷，避免舊資料沒有存 invtype 就整欄空白；
+      // 判斷不出來時才退回使用當初儲存的值）
       const tdIT = document.createElement('td');
-      if(r.invtype && r.invtype!=='—'){ const sp=document.createElement('span'); sp.className='badge '+(r.invtype==='三聯式'?'b-inv3':'b-invE'); sp.textContent=r.invtype; tdIT.appendChild(sp); } else tdIT.textContent='—';
+      const rInvType = deriveInvType(r.date, r.invoice) || (r.invtype && r.invtype!=='—' ? r.invtype : '');
+      if(rInvType){ const sp=document.createElement('span'); sp.className='badge '+(rInvType==='三聯式'?'b-inv3':'b-invE'); sp.textContent=rInvType; tdIT.appendChild(sp); } else tdIT.textContent='—';
       tr.appendChild(tdIT);
       // 幣別
       const tdCur = document.createElement('td');
@@ -1652,11 +1664,18 @@ function renderPayInv(){
 
   tb.innerHTML = list.length ? list.map(r => {
     const ps = payStatusInv(r);
+    const poHtml = (r.po && r.po.length)
+      ? `<div class="po-list">${r.po.map(p=>`<span class="po-chip">${esc(p)}</span>`).join('')}</div>`
+      : '—';
+    const it = deriveInvType(r.date, r.invoice) || (r.invtype && r.invtype!=='—' ? r.invtype : '');
+    const itHtml = it ? `<span class="badge ${it==='三聯式'?'b-inv3':'b-invE'}">${it}</span>` : '—';
     return `<tr onclick="editRecord('${r.id}')" style="cursor:pointer">
       <td style="font-family:'Courier New',monospace;font-weight:700">${esc(r.code)||'—'}</td>
       <td style="font-weight:600">${esc(r.vendor)||'—'}</td>
-      <td style="font-family:'Courier New',monospace">${esc(r.invoice)||'—'}</td>
       <td style="white-space:nowrap">${fD(r.date)}</td>
+      <td style="font-family:'Courier New',monospace">${esc(r.invoice)||'—'}</td>
+      <td>${poHtml}</td>
+      <td>${itHtml}</td>
       <td>${esc(r.currency)||'—'}</td>
       <td>${esc(r.tax)||'—'}</td>
       <td style="white-space:nowrap">${fD(r.finish)}</td>
@@ -1664,7 +1683,7 @@ function renderPayInv(){
       <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.remark)||''}">${esc(r.remark)||'—'}</td>
       <td><span class="badge ${ps.cls}">${ps.label}</span></td>
     </tr>`;
-  }).join('') : `<tr><td colspan="10"><div style="text-align:center;padding:24px;color:var(--tx3)">${dFilter?`無符合 ${dFilter} 的資料`:'無資料'}</div></td></tr>`;
+  }).join('') : `<tr><td colspan="12"><div style="text-align:center;padding:24px;color:var(--tx3)">${dFilter?`無符合 ${dFilter} 的資料`:'無資料'}</div></td></tr>`;
 }
 
 // ══ CALENDAR（參考採購系統 desktop.html 行事曆頁；
@@ -1867,35 +1886,39 @@ function checkInvoiceNo(){
   return msg;
 }
 
-// 自動計算發票形式
+// 自動判斷發票形式（純函式：不動 DOM，供表單即時顯示與列表/付款管理欄位共用）
+// 回傳 '三聯式' / '電子' / ''（資料不足，無法判斷）
+function deriveInvType(dateVal, invoiceVal){
+  if(!dateVal || !invoiceVal || String(invoiceVal).length < 2) return '';
+  const yearMonth = String(dateVal).slice(0, 7);              // YYYY-MM
+  const prefix    = String(invoiceVal).slice(0, 2).toUpperCase(); // 前兩碼
+
+  // 找符合的字軌：年月在 from~to 範圍內，且字軌碼相同
+  const matched = tracks.find(t => {
+    const f = normTrackMonth(t.from);
+    const e = normTrackMonth(t.to);
+    return t.code.toUpperCase() === prefix && yearMonth >= f && yearMonth <= e;
+  });
+  return matched ? '三聯式' : '電子';
+}
+
+// 新增／編輯發票表單：即時顯示發票形式
 function calcInvType(){
   const dateVal    = getVal('f-date');    // YYYY-MM-DD
   const invoiceVal = getVal('f-invoice'); // e.g. AA12345678
   const el = document.getElementById('f-invtype');
   if(!el) return;
 
-  if(!dateVal || !invoiceVal || invoiceVal.length < 2){
+  const result = deriveInvType(dateVal, invoiceVal);
+  if(!result){
     el.textContent = '—'; el.classList.add('empty'); return;
   }
-
-  const yearMonth  = dateVal.slice(0, 7);       // YYYY-MM
-  const prefix     = invoiceVal.slice(0, 2).toUpperCase(); // 前兩碼
-
-  // 找符合的字軌：年月在 from~to 範圍內，且字軌碼相同
-  const matched = tracks.find(t => {
-    const f = normTrackMonth(t.from);
-    const e = normTrackMonth(t.to);
-    const codeMatch  = t.code.toUpperCase() === prefix;
-    const rangeMatch = yearMonth >= f && yearMonth <= e;
-    console.log('[calcInvType] track:', t.code, f, '~', e, '| invoice:', yearMonth, prefix, '| code:', codeMatch, 'range:', rangeMatch);
-    return codeMatch && rangeMatch;
-  });
-
-  if(matched){
-    el.textContent = '三聯式'; el.classList.remove('empty');
+  el.classList.remove('empty');
+  if(result === '三聯式'){
+    el.textContent = '三聯式';
     el.style.color = 'var(--gtx)'; el.style.fontWeight = '700';
   } else {
-    el.textContent = '電子'; el.classList.remove('empty');
+    el.textContent = '電子';
     el.style.color = 'var(--btx)'; el.style.fontWeight = '600';
   }
 }
