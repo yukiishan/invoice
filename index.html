@@ -1,6 +1,27 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
+<!--
+  發票管理系統 - 版本紀錄 (Version Log)
+  ════════════════════════════════════════════════════════════════
+  版本編號規則：v主版本.次版本（每次調整功能／修正問題就新增一行紀錄，
+                寫在最下面，最新的放最後）
+
+  v1.0  2026-08-28
+    - 移除前端強制自動備份，改為完全交由後端每日排程判斷（有異動才備份）
+    - 廠商資料維護：新增廠商代號重複檢查與即時警示（同採購系統邏輯）
+    - 廠商列表版面：名稱固定寬度（約 8 個中文字元）＋ 稅別/幣別/付款天數
+      統一對齊，不受名稱長短影響
+    - 新增「付款管理」「行事曆」分頁（參考採購系統功能，依發票系統資料
+      結構調整：以預計付款日為主）
+    - 新增發票／新增廠商表單：調整 Tab 鍵順序，方便鍵盤連續輸入
+    - 發票列表／廠商資料維護／付款管理：支援 Ctrl+F（Mac 為 Cmd+F）定位
+      搜尋欄、Esc 清空搜尋
+    - 代碼、發票號碼、PO#、付款時間欄位：即時過濾中文／注音，只留英數符號
+    - 發票號碼新增格式檢查（須為英數字共 10 碼）與重複檢查，不符合則警示
+      並禁止儲存
+  ════════════════════════════════════════════════════════════════
+-->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="favicon.ico">
@@ -380,8 +401,9 @@ tbody td{padding:5px 7px;vertical-align:middle}
         <div class="fg">
           <label>發票號碼 Invoice#</label>
           <input type="text" id="f-invoice" placeholder="YY05184726" tabindex="3"
-            oninput="this.value=this.value.toUpperCase();calcInvType()"
+            oninput="this.value=this.value.toUpperCase();calcInvType();checkInvoiceNo()"
             style="font-family:'Courier New',monospace">
+          <div id="invoiceNoWarn" style="color:var(--rtx);font-size:10px;margin-top:2px;min-height:12px;font-weight:600"></div>
         </div>
         <div class="fg">
           <label>發票形式</label>
@@ -1094,6 +1116,8 @@ async function submitForm(){
   const code=getVal('f-code').toUpperCase(), date=getVal('f-date');
   if(!code){ ntf('請輸入廠商代碼'); return; }
   if(!date){ ntf('請選擇發票日期'); return; }
+  const invNoMsg = checkInvoiceNo();
+  if(invNoMsg){ ntf(invNoMsg); return; }
   const v = vendors.find(x => x.code.toUpperCase() === code);
   const rec = {
     id:       editId || Date.now().toString(),
@@ -1171,6 +1195,7 @@ function clearForm(){
   const d=document.getElementById('f-vd'); d.textContent='— 自動帶入 —'; d.classList.add('empty');
   document.getElementById('calc-hint').textContent = ''; const it=document.getElementById('f-invtype'); if(it){it.textContent='—';it.classList.add('empty');};
   poTags=[]; drawPo(); rgSet('rg-fin','— 無');
+  const invWarn=document.getElementById('invoiceNoWarn'); if(invWarn) invWarn.textContent='';
   editId=null;
   document.getElementById('submit-btn').textContent='儲存發票';
   document.getElementById('form-title').textContent='新增發票';
@@ -1203,7 +1228,7 @@ function editRecord(id){
   setVal('f-currency', r.currency||'');
   setVal('f-paydays',  r.paydays||'');
   setVal('f-date',     r.date||'');
-  setVal('f-invoice',  r.invoice||''); calcInvType();
+  setVal('f-invoice',  r.invoice||''); calcInvType(); checkInvoiceNo();
   setVal('f-sp',       r.sp||'');
   setVal('f-remark',   r.remark||'');
   setVal('f-finish',   r.finish||'');
@@ -1785,6 +1810,23 @@ function addTrack(){
 }
 
 function delTrack(i){ tracks.splice(i,1); renderTrackList(); }
+
+// 發票號碼即時檢查：英數字須共 10 碼，且不可與既有發票完全重複
+function checkInvoiceNo(){
+  const warn = document.getElementById('invoiceNoWarn');
+  if(!warn) return '';
+  const val = getVal('f-invoice');
+  if(!val){ warn.textContent=''; return ''; }
+  if(val.length !== 10){
+    const msg = `⚠ 發票號碼須為英數字共 10 碼（目前 ${val.length} 碼）`;
+    warn.textContent = msg;
+    return msg;
+  }
+  const isDup = invoices.some(r => r.invoice && r.invoice.toUpperCase() === val.toUpperCase() && r.id !== editId);
+  const msg = isDup ? '⚠ 發票號碼與既有紀錄重複' : '';
+  warn.textContent = msg;
+  return msg;
+}
 
 // 自動計算發票形式
 function calcInvType(){
