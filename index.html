@@ -20,6 +20,10 @@
     - 代碼、發票號碼、PO#、付款時間欄位：即時過濾中文／注音，只留英數符號
     - 發票號碼新增格式檢查（須為英數字共 10 碼）與重複檢查，不符合則警示
       並禁止儲存
+
+  v1.1  2026-08-28
+    - 發票號碼 10 碼規則改為依帶入的廠商幣別判斷：台幣才須為英數字共 10
+      碼，外幣不限長度；重複檢查則不分幣別、一律套用
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -430,7 +434,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
         </div>
         <div class="fg">
           <label>幣別</label>
-          <select id="f-currency" onchange="calcPayDate()" style="width:100%">
+          <select id="f-currency" onchange="calcPayDate();checkInvoiceNo()" style="width:100%">
             <option value="">— 請選擇 —</option>
             <option value="台幣">台幣</option>
             <option value="外幣">外幣</option>
@@ -1074,6 +1078,7 @@ function lookupVendor(resetAll){
     setVal('f-currency', v.currency||'');
     setVal('f-paydays',  v.paydays||'');
     calcPayDate();
+    checkInvoiceNo();
   } else {
     d.textContent = code.length >= 2 ? '— 找不到廠商 —' : '— 自動帶入 —';
     d.classList.add('empty');
@@ -1817,7 +1822,9 @@ function checkInvoiceNo(){
   if(!warn) return '';
   const val = getVal('f-invoice');
   if(!val){ warn.textContent=''; return ''; }
-  if(val.length !== 10){
+  // 台幣（帶入廠商幣別為台幣）：須為英數字共 10 碼；外幣：不限長度
+  const currency = getVal('f-currency');
+  if(currency === '台幣' && val.length !== 10){
     const msg = `⚠ 發票號碼須為英數字共 10 碼（目前 ${val.length} 碼）`;
     warn.textContent = msg;
     return msg;
