@@ -114,6 +114,15 @@
     - 確認歷史資料的發票形式／幣別底色與付款管理相同（兩者本來就共用
       同一段渲染程式，理論上不會不同；若畫面上看起來有落差，請確認是否
       已更新成最新版本的 index.html）
+
+  v1.15  2026-08-28
+    - 確認付款管理明細列點選任何欄位（代碼／廠商／發票日期／發票號碼／
+      PO#／發票形式／幣別／稅別／完成日／預計付款日／備註／付款狀態）
+      本來就都能進入編輯發票頁面，這部分無需修改
+    - 修正編輯發票後「儲存／取消／刪除」一律跳回發票列表的問題：現在會
+      記住是從哪個分頁點進來編輯的（例如從付款管理點進來），儲存、取消
+      或刪除之後會回到原本那個分頁，而不是固定跳回發票列表；從「+新增」
+      開立的全新發票仍照舊回到發票列表
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -964,6 +973,7 @@ function lRead(k){ try{ const s=localStorage.getItem('inv_'+k); return s?JSON.pa
 let invoices = [], vendors = [], holidays = [];
 let holSet = new Set();
 let editId = null, poTags = [], vpEditCode = null;
+let _editOriginTab = 'list'; // 記錄從哪個分頁點進編輯（例如付款管理），儲存/取消/刪除後才能回到原本那個分頁
 let _listNeedsRefresh = true; // 控制 sw('list') 是否重渲
 let _continuous = false;        // 連續開立模式
 
@@ -1282,8 +1292,10 @@ async function submitForm(){
     clearForm();
     setTimeout(()=>{ const fc=document.getElementById('f-code'); if(fc) fc.focus(); }, 80);
   } else {
+    // 編輯模式：回到原本點進來的分頁（例如付款管理）；新增模式一律回發票列表
+    const returnTab = editId_was ? (_editOriginTab || 'list') : 'list';
     clearForm();
-    sw('list', null);
+    sw(returnTab, null);
   }
 }
 
@@ -1314,16 +1326,18 @@ function deleteFromForm(){
   invoices = invoices.filter(x => x.id !== editId);
   saveInvoicesCloud().catch(()=>{});
   _listNeedsRefresh = true;
+  const returnTab = _editOriginTab || 'list';
   clearForm();
-  sw('list', null);
+  sw(returnTab, null);
   ntf('✓ 發票已刪除');
 }
 
 function cancelEdit(){
-  // 取消編輯：清空表單，切回列表
+  // 取消編輯：清空表單，回到原本點進來的分頁（例如付款管理）
   _listNeedsRefresh = false; // 不需重渲，資料沒變
+  const returnTab = _editOriginTab || 'list';
   clearForm();
-  sw('list', null);
+  sw(returnTab, null);
 }
 
 function clearForm(){
@@ -1349,12 +1363,14 @@ function clearForm(){
 }
 
 function editRecord(id){
-  console.log('[editRecord] start, id:', id, 'found:', !!invoices.find(x=>x.id===id));
   const r = invoices.find(x => x.id === id);
-  if(!r){ console.warn('[editRecord] record not found!'); return; }
+  if(!r) return;
+  // 記住是從哪個分頁點進來編輯的（例如付款管理），儲存/取消/刪除後要回到這裡，
+  // 而不是固定跳回發票列表
+  const activeTabEl = document.querySelector('[id^="tab-"].active');
+  _editOriginTab = activeTabEl ? activeTabEl.id.replace('tab-','') : 'list';
   editId = id;
   sw('add', null);
-  console.log('[editRecord] sw done, tab-add active:', document.getElementById('tab-add')?.classList.contains('active'));
   document.getElementById('form-title').textContent = '編輯發票';
   document.getElementById('submit-btn').textContent = '更新發票';
   setVal('f-code', r.code||'');
@@ -1385,7 +1401,6 @@ function editRecord(id){
   if(clearBtn) clearBtn.style.display='none';
   if(formDelBtn) formDelBtn.style.display='';
   if(continuousBtn) continuousBtn.style.display='none';
-  console.log('[editRecord] done, form filled');
 }
 
 async function deleteRecord(id){
@@ -1522,7 +1537,6 @@ function renderTable(){
           if(!inp.value) return;
           if(inp._lastVal === inp.value) return;
           inp._lastVal = inp.value;
-          console.log('[Invoice] saveFinish (commit)', r.id, inp.value);
           saveFinish(r.id, inp.value);
         }
         inp.addEventListener('change', function(){
@@ -1549,14 +1563,12 @@ function renderTable(){
       btnE.className='btn xs'; btnE.textContent='編輯';
       btnE.addEventListener('click', function(e){
         e.preventDefault(); e.stopPropagation();
-        console.log('[Invoice] editRecord', r.id);
         editRecord(r.id);
       });
       const btnD = document.createElement('button');
       btnD.className='btn xs danger'; btnD.textContent='刪除';
       btnD.addEventListener('click', function(e){
         e.preventDefault(); e.stopPropagation();
-        console.log('[Invoice] deleteRecord', r.id);
         if(!confirm('確定刪除此筆發票？')) return;
         invoices = invoices.filter(x => x.id !== r.id);
         saveInvoicesCloud().catch(()=>{});
@@ -1588,12 +1600,10 @@ function updateStats(){
 
 // ══ TABS ═══════════════════════════════════════════
 function sw(name, btn){
-  console.log('[SW] switching to:', name, 'editId:', editId);
   // 切換 tab panel
   document.querySelectorAll('[id^="tab-"]').forEach(e => e.classList.remove('active'));
   const tab = document.getElementById('tab-'+name);
-  if(tab){ tab.classList.add('active'); console.log('[SW] tab panel activated:', tab.id); }
-  else { console.warn('[SW] tab panel not found: tab-'+name); }
+  if(tab){ tab.classList.add('active'); }
   // 切換 tab button 樣式
   document.querySelectorAll('.tab').forEach(e => e.classList.remove('active'));
   if(btn){
