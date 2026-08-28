@@ -24,6 +24,26 @@
   v1.1  2026-08-28
     - 發票號碼 10 碼規則改為依帶入的廠商幣別判斷：台幣才須為英數字共 10
       碼，外幣不限長度；重複檢查則不分幣別、一律套用
+
+  v1.2  2026-08-28
+    - 發票號碼欄位開放輸入英數字以外的符號（/ * - + @ # $ 等等），只擋
+      中文／注音；代碼、PO#、廠商代碼等欄位維持只能英數（PO# 仍額外允許
+      連字號與星號）
+
+  v1.3  2026-08-28
+    - 新增發票 Tab 順序智慧化：固定快速路徑仍為 代碼→發票日期→發票號碼→
+      PO→儲存發票；若滑鼠先點選其他欄位（稅別、幣別、2聯財務、特殊說明、
+      備註、預計付款日等），按 Tab 會依畫面實際位置，直接跳到快速路徑中
+      排在它後面的下一個欄位（例如點選 2聯財務後按 Tab，因為位置在 PO
+      與儲存發票之間，會直接跳到儲存發票）
+
+  v1.4  2026-08-28
+    - 發票列表／付款管理：改為凍結標題列，僅表格內容捲動（參考採購系統
+      desktop.html 版面），發票列表的統計數字列（總筆數／已驗收／待驗收）
+      也一併固定在上方不隨內容捲動
+    - 發票列表移除分頁機制，改為一次列出全部符合條件的資料，靠捲動瀏覽
+    - 發票列表欄位順序調整為：代碼／廠商／發票日期／發票號碼／幣別／
+      稅別／PO#／完成日（驗收日）／預計付款日／操作
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -105,6 +125,11 @@ body{font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;background:var(-
 .mval{font-size:17px;font-weight:700}
 
 /* ── Table ── */
+/* 標題欄凍結／僅內容捲動（參考採購系統 desktop.html）：
+   .tbl-content 本身不捲動，交由內部 .twrap 以 flex:1 撐滿剩餘高度並自行捲動，
+   thead 的 position:sticky 才會相對 .twrap 生效，達到「凍結標題列」效果 */
+.tbl-content{overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.tbl-content .twrap{flex:1;overflow:auto;min-height:0}
 .twrap{background:var(--sf);border:1px solid var(--bd);border-radius:var(--rl);overflow:auto}
 table{width:100%;border-collapse:collapse;font-size:11px}
 thead th{padding:6px 7px;text-align:left;font-size:10px;font-weight:700;color:var(--tx2);background:var(--sf2);border-bottom:1px solid var(--bd);white-space:nowrap;position:sticky;top:0;z-index:2;letter-spacing:.03em}
@@ -181,14 +206,6 @@ tbody td{padding:5px 7px;vertical-align:middle}
 .hol-name{font-size:11px;flex:1;color:var(--tx2)}
 .hol-del{font-size:11px;cursor:pointer;color:var(--tx3);padding:2px 6px;border:1px solid var(--bd);background:none;border-radius:4px;font-family:inherit}
 .hol-del:hover{background:var(--rbg);color:var(--rtx)}
-
-/* ── Pagination ── */
-.pgbar{display:flex;align-items:center;gap:4px;padding:8px 10px;border-top:1px solid var(--bd);flex-shrink:0}
-.pgbtn{padding:3px 9px;border:1px solid var(--bd);border-radius:5px;background:var(--sf2);color:var(--tx2);font-size:11px;cursor:pointer;font-family:inherit;transition:all .15s}
-.pgbtn:hover{border-color:var(--bd2);color:var(--tx)}
-.pgbtn.on{background:var(--bbg);border-color:#7db8e8;color:var(--btx);font-weight:700}
-.pgbtn:disabled{opacity:.4;cursor:default}
-.pginfo{font-size:11px;color:var(--tx3);margin-left:auto}
 
 /* ── Toast & Loading ── */
 .ntf{position:fixed;bottom:18px;right:18px;background:var(--tx);color:#fff;padding:8px 16px;border-radius:var(--r);font-size:12px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
@@ -340,24 +357,23 @@ tbody td{padding:5px 7px;vertical-align:middle}
     </div>
     <div class="spacer"></div>
   </div>
-  <div class="content">
-    <div class="sg">
-      <div class="metric"><div class="mlbl">總筆數</div><div class="mval" id="m-total">0</div></div>
-      <div class="metric"><div class="mlbl">已驗收</div><div class="mval" id="m-done" style="color:var(--green)">0</div></div>
-      <div class="metric"><div class="mlbl">待驗收</div><div class="mval" id="m-pend" style="color:var(--amber)">0</div></div>
-    </div>
+  <div class="sg" style="padding:9px 14px 0;flex-shrink:0">
+    <div class="metric"><div class="mlbl">總筆數</div><div class="mval" id="m-total">0</div></div>
+    <div class="metric"><div class="mlbl">已驗收</div><div class="mval" id="m-done" style="color:var(--green)">0</div></div>
+    <div class="metric"><div class="mlbl">待驗收</div><div class="mval" id="m-pend" style="color:var(--amber)">0</div></div>
+  </div>
+  <div class="content tbl-content">
     <div class="twrap">
       <table>
         <thead>
           <tr>
-            <th>廠商</th><th>代碼</th><th>發票日期</th><th>稅別</th><th>幣別</th>
-            <th>發票號碼</th><th>PO#</th>
+            <th>代碼</th><th>廠商</th><th>發票日期</th><th>發票號碼</th>
+            <th>幣別</th><th>稅別</th><th>PO#</th>
             <th>完成日（驗收日）</th><th>預計付款日</th><th>操作</th>
           </tr>
         </thead>
         <tbody id="tbl-body"></tbody>
       </table>
-      <div class="pgbar" id="pgbar"></div>
     </div>
   </div>
 </div>
@@ -443,9 +459,9 @@ tbody td{padding:5px 7px;vertical-align:middle}
         <div class="fg">
           <label>2聯財務</label>
           <div class="rg" id="rg-fin">
-            <span class="rb on" onclick="rg('rg-fin',this)">— 無</span>
-            <span class="rb" onclick="rg('rg-fin',this)">✓ 已送</span>
-            <span class="rb" onclick="rg('rg-fin',this)">✗ 未送</span>
+            <span class="rb on" tabindex="0" onclick="rg('rg-fin',this)">— 無</span>
+            <span class="rb" tabindex="0" onclick="rg('rg-fin',this)">✓ 已送</span>
+            <span class="rb" tabindex="0" onclick="rg('rg-fin',this)">✗ 未送</span>
           </div>
         </div>
         <div class="fg">
@@ -563,7 +579,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
     </div>
     <div class="spacer"></div>
   </div>
-  <div class="content">
+  <div class="content tbl-content">
     <div class="twrap">
       <table>
         <thead>
@@ -842,8 +858,7 @@ function lRead(k){ try{ const s=localStorage.getItem('inv_'+k); return s?JSON.pa
 // ══ STATE ═════════════════════════════════════════
 let invoices = [], vendors = [], holidays = [];
 let holSet = new Set();
-let editId = null, poTags = [], curPage = 1, vpEditCode = null;
-const PS = 25;
+let editId = null, poTags = [], vpEditCode = null;
 let _listNeedsRefresh = true; // 控制 sw('list') 是否重渲
 let _continuous = false;        // 連續開立模式
 
@@ -1318,43 +1333,40 @@ function renderTable(){
     const mt = !stax || r.tax === stax;
     return ms && mf && mt;
   });
-  const total=data.length, pages=Math.max(1,Math.ceil(total/PS));
-  if(curPage > pages) curPage = 1;
-  const paged = data.slice((curPage-1)*PS, curPage*PS);
 
   const tbody = document.getElementById('tbl-body');
   tbody.innerHTML = '';
 
-  if(!paged.length){
+  if(!data.length){
     const tr = document.createElement('tr');
     const td = document.createElement('td');
     td.colSpan = 10; td.style.cssText = 'text-align:center;padding:28px;color:var(--tx3)';
     td.textContent = '無符合記錄'; tr.appendChild(td); tbody.appendChild(tr);
   } else {
-    paged.forEach(r => {
+    data.forEach(r => {
       const tr = document.createElement('tr');
       tr.dataset.rowId = r.id;
 
-      // 廠商
-      const tdV = document.createElement('td');
-      tdV.style.fontWeight='600'; tdV.textContent = r.vendor||'—'; tr.appendChild(tdV);
       // 代碼
       const tdC = document.createElement('td');
       tdC.className='mono'; tdC.textContent=r.code||'—'; tr.appendChild(tdC);
-      // 日期
+      // 廠商
+      const tdV = document.createElement('td');
+      tdV.style.fontWeight='600'; tdV.textContent = r.vendor||'—'; tr.appendChild(tdV);
+      // 發票日期
       const tdD = document.createElement('td');
       tdD.style.whiteSpace='nowrap'; tdD.textContent=r.date||'—'; tr.appendChild(tdD);
-      // 稅別
-      const tdT = document.createElement('td');
-      if(r.tax){ const sp=document.createElement('span'); sp.className='badge b-tax'; sp.textContent=r.tax; tdT.appendChild(sp); } else tdT.textContent='—';
-      tr.appendChild(tdT);
+      // 發票號碼
+      const tdI = document.createElement('td');
+      tdI.className='mono'; tdI.textContent=r.invoice||'—'; tr.appendChild(tdI);
       // 幣別
       const tdCur = document.createElement('td');
       if(r.currency){ const sp=document.createElement('span'); sp.className='badge '+(r.currency==='台幣'?'b-cur-tw':'b-cur-fx'); sp.textContent=r.currency; tdCur.appendChild(sp); } else tdCur.textContent='—';
       tr.appendChild(tdCur);
-      // 發票號碼
-      const tdI = document.createElement('td');
-      tdI.className='mono'; tdI.textContent=r.invoice||'—'; tr.appendChild(tdI);
+      // 稅別
+      const tdT = document.createElement('td');
+      if(r.tax){ const sp=document.createElement('span'); sp.className='badge b-tax'; sp.textContent=r.tax; tdT.appendChild(sp); } else tdT.textContent='—';
+      tr.appendChild(tdT);
       // PO#
       const tdP = document.createElement('td');
       if(r.po&&r.po.length){ const dl=document.createElement('div'); dl.className='po-list'; r.po.forEach(p=>{ const sp=document.createElement('span'); sp.className='po-chip'; sp.textContent=p; dl.appendChild(sp); }); tdP.appendChild(dl); } else tdP.textContent='—';
@@ -1422,34 +1434,7 @@ function renderTable(){
       tbody.appendChild(tr);
     });
   }
-
-  // Pagination（用 DOM API 避免 innerHTML onclick 問題）
-  const pg = document.getElementById('pgbar');
-  pg.innerHTML = '';
-  if(pages <= 1){
-    const sp=document.createElement('span'); sp.className='pginfo'; sp.textContent='共 '+total+' 筆'; pg.appendChild(sp);
-  } else {
-    const mkPgBtn = (label, page, disabled, active) => {
-      const b = document.createElement('button');
-      b.className = 'pgbtn' + (active?' on':'');
-      b.textContent = label; b.disabled = !!disabled;
-      b.addEventListener('click', ()=>{ curPage=page; renderTable(); });
-      return b;
-    };
-    pg.appendChild(mkPgBtn('‹', curPage-1, curPage===1, false));
-    let last=-1;
-    for(let i=1;i<=pages;i++){
-      if(i===1||i===pages||Math.abs(i-curPage)<=2){
-        if(last>0 && i-last>1){ const sp=document.createElement('span'); sp.style.cssText='color:var(--tx3);padding:0 2px'; sp.textContent='…'; pg.appendChild(sp); }
-        pg.appendChild(mkPgBtn(String(i), i, false, i===curPage));
-        last=i;
-      }
-    }
-    pg.appendChild(mkPgBtn('›', curPage+1, curPage===pages, false));
-    const sp=document.createElement('span'); sp.className='pginfo'; sp.textContent='共 '+total+' 筆'; pg.appendChild(sp);
-  }
 }
-function gp(p){ curPage=p; renderTable(); }
 
 function toggleFlt(group, val, btn){
   // 每組獨立 toggle
@@ -1902,13 +1887,45 @@ function restrictInput(id, disallowedPattern){
   el.addEventListener('input', filter);
   el.addEventListener('compositionend', filter);
 }
-// 新增發票：代碼／發票號碼／PO#（PO# 額外允許連字號「-」與星號「*」，供自動轉換字軌用）
+// 新增發票：代碼／發票號碼／PO#
+// 發票號碼額外開放英數字以外的符號（/ * - + @ # $ 等等，任何不含空格的可列印
+// ASCII 字元都放行），只擋中文／注音；代碼跟 PO# 仍限英數（PO# 額外允許
+// 連字號「-」與星號「*」，供自動轉換字軌用）
 restrictInput('f-code',    /[^A-Za-z0-9]/g);
-restrictInput('f-invoice', /[^A-Za-z0-9]/g);
+restrictInput('f-invoice', /[^\x21-\x7E]/g);
 restrictInput('po-inp',    /[^A-Za-z0-9\-*]/g);
 // 廠商資料維護：代碼／付款時間（天數，額外保險，type=number 原生也會擋掉大部分中文輸入）
 restrictInput('vp-code',    /[^A-Za-z0-9]/g);
 restrictInput('vp-paydays', /[^0-9]/g);
+
+// ══ 新增發票表單：Tab 順序客製化 ═══════════════════════
+// 快速路徑固定順序：代碼(1)→發票日期(2)→發票號碼(3)→PO(4)→儲存發票(5)，
+// 這 5 個欄位已經用上面的 tabindex 屬性處理好了。
+// 但如果使用者用滑鼠點了其他欄位（稅別、幣別、2聯財務、特殊、備註、
+// 完成日、預計付款日…），這裡再按 Tab 時，改成依照該欄位在畫面上的實際
+// 位置，直接跳到「快速路徑」裡下一個排在它後面的欄位（例如點 2聯財務，
+// 因為畫面位置在 PO 跟儲存發票中間，按 Tab 就直接跳到儲存發票）。
+const INVOICE_FASTPATH_IDS = ['f-code','f-date','f-invoice','po-inp','submit-btn'];
+(function(){
+  const formEl = document.getElementById('tab-add');
+  if(!formEl) return;
+  formEl.addEventListener('keydown', function(e){
+    if(e.key !== 'Tab' || e.shiftKey) return; // 只處理往前 Tab
+    const cur = e.target;
+    if(!cur || INVOICE_FASTPATH_IDS.includes(cur.id)) return; // 5 個快速路徑欄位交給原生 tabindex 處理
+    for(const id of INVOICE_FASTPATH_IDS){
+      const target = document.getElementById(id);
+      if(!target) continue;
+      const pos = cur.compareDocumentPosition(target);
+      if(pos & Node.DOCUMENT_POSITION_FOLLOWING){
+        e.preventDefault();
+        target.focus();
+        if(typeof target.select === 'function') target.select();
+        return;
+      }
+    }
+  });
+})();
 
 // ══ 搜尋快捷鍵（發票列表／廠商資料維護／付款管理）═══════
 // Ctrl+F（Mac 為 Cmd+F）：攔截瀏覽器內建搜尋，改為聚焦目前分頁的搜尋欄
