@@ -1829,6 +1829,43 @@ function exportCSV(){
   a.download = 'invoices_' + new Date().toISOString().slice(0,10) + '.csv'; a.click();
 }
 
+// ══ 搜尋快捷鍵（發票列表／廠商資料維護／付款管理）═══════
+// Ctrl+F（Mac 為 Cmd+F）：攔截瀏覽器內建搜尋，改為聚焦目前分頁的搜尋欄
+// Esc：若焦點在搜尋欄，清空並取消搜尋（重新顯示全部資料）
+const SEARCH_INPUT_BY_TAB = { list:'s-text', vendors:'vm-search', payment:'psrch' };
+const SEARCH_RERENDER = {
+  's-text':   renderTable,
+  'vm-search':renderVendors,
+  'psrch':    renderPayInv
+};
+document.addEventListener('keydown', function(e){
+  const key = e.key;
+  if((e.ctrlKey || e.metaKey) && key.toLowerCase() === 'f'){
+    const activeTab = document.querySelector('[id^="tab-"].active');
+    const tabName = activeTab ? activeTab.id.replace('tab-','') : '';
+    const inputId = SEARCH_INPUT_BY_TAB[tabName];
+    if(inputId){
+      const inp = document.getElementById(inputId);
+      if(inp){
+        e.preventDefault();
+        inp.focus();
+        inp.select();
+      }
+    }
+    return;
+  }
+  if(key === 'Escape'){
+    const el = document.activeElement;
+    if(el && SEARCH_RERENDER[el.id]){
+      if(el.value){
+        el.value = '';
+        SEARCH_RERENDER[el.id]();
+      }
+      el.blur();
+    }
+  }
+});
+
 // ══ INIT ═══════════════════════════════════════════
 _TOKEN = sessionStorage.getItem('inv_token') || '';
 if(checkAuth()){
