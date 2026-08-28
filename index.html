@@ -174,6 +174,47 @@ tbody td{padding:5px 7px;vertical-align:middle}
 .flt-btn{border:none;background:transparent;color:var(--tx3);cursor:pointer;font-size:11px;padding:2px 8px;border-radius:5px;font-family:inherit;transition:all .15s;white-space:nowrap}
 .flt-btn:hover{background:var(--sf3);color:var(--tx)}
 .flt-btn.active{background:var(--accent);color:#fff}
+
+/* ── 付款管理（參考採購系統 desktop.html 付款管理頁）── */
+.badge.b-sch{background:var(--sf3);color:var(--tx2)}
+
+/* ── 行事曆（參考採購系統 desktop.html 行事曆頁，改為顯示預計付款日）── */
+.calwrap{padding:11px 14px;overflow-y:auto;height:100%}
+.calctrl{display:flex;align-items:center;gap:7px;margin-bottom:11px;flex-wrap:wrap}
+.calctrl select{font-size:12px;padding:4px 8px;border-radius:var(--r);border:1px solid var(--bd);background:var(--sf2);color:var(--tx);font-family:inherit;height:28px}
+.calleg{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-left:auto;font-size:11px;color:var(--tx2)}
+.legdot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:3px}
+.calgrid{border:1px solid var(--bd);border-radius:var(--rl);overflow:hidden;background:var(--sf)}
+.calwkhd{display:grid;grid-template-columns:0.6fr 1fr 1fr 1fr 1fr 1fr 0.6fr}
+.calwkhd div{padding:6px 3px;text-align:center;font-size:12px;font-weight:700;color:var(--tx2);background:var(--sf2);border-bottom:1px solid var(--bd)}
+.calwkhd div:first-child{color:var(--rtx)}
+.calwkhd div:last-child{color:var(--btx)}
+.calbody{display:grid;grid-template-columns:0.6fr 1fr 1fr 1fr 1fr 1fr 0.6fr}
+.calcell{border-right:1px solid var(--bd);border-bottom:1px solid var(--bd);padding:4px 3px;min-height:80px;max-height:120px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin}
+.calcell:nth-child(7n){border-right:none}
+.calcell::-webkit-scrollbar{width:4px}
+.calcell::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px}
+.calcell::-webkit-scrollbar-track{background:transparent}
+.calcell.om{background:var(--sf2)}
+.calcell.wknd{background:var(--sf3)}
+.calcell.hol{background:var(--rbg)}
+.calcell.today .caldate{background:var(--blue);color:#fff;border-radius:50%;width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+.caldate{font-size:12px;font-weight:600;margin-bottom:2px;display:inline-block;width:20px;height:20px;text-align:center;line-height:20px}
+.calcell.om .caldate,.calcell.wknd .caldate,.calcell.hol .caldate{color:var(--tx3)}
+.calev{font-size:11px;padding:2px 4px;border-radius:3px;margin-bottom:2px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default;font-weight:500}
+.calev.evpay{background:var(--abg);color:var(--atx)}
+
+.cal-day-popup-ov{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;display:flex;align-items:center;justify-content:center}
+.cal-day-popup{background:var(--sf);border-radius:var(--rl);width:min(420px,90vw);max-height:75vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.cal-day-popup-hd{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--bd);position:sticky;top:0;background:var(--sf)}
+.cal-day-popup-title{font-size:14px;font-weight:700;color:var(--tx)}
+.cal-day-popup-body{padding:12px 16px}
+.cal-ev-item{padding:9px 11px;border-radius:10px;margin-bottom:8px;border:1px solid var(--bd)}
+.cal-ev-hol{background:var(--rbg);border-color:#e0b8b8}
+.cal-ev-pay{background:var(--abg);border-color:#dbc07a}
+.cal-ev-title{font-size:12px;font-weight:700;margin-bottom:4px}
+.cal-ev-detail{font-size:11px;color:var(--tx2);line-height:1.6}
+.cal-no-ev{text-align:center;padding:24px;color:var(--tx3);font-size:13px}
 </style>
 </head>
 <body>
@@ -235,6 +276,8 @@ tbody td{padding:5px 7px;vertical-align:middle}
     <button class="tab active" onclick="sw('list',this)">發票列表</button>
     <button class="tab" onclick="sw('add',this)">＋ 新增</button>
     <button class="tab" onclick="sw('vendors',this)">廠商資料維護</button>
+    <button class="tab" onclick="sw('payment',this)">付款管理</button>
+    <button class="tab" onclick="sw('calendar',this)">行事曆</button>
   </div>
   <div class="tb-right">
     <span id="hdr-count" style="font-size:11px;color:var(--tx3);margin-right:2px"></span>
@@ -473,6 +516,62 @@ tbody td{padding:5px 7px;vertical-align:middle}
       </div>
       <button id="vp-del-btn" class="btn danger sm" onclick="deleteVendorFromPanel()" style="display:none">🗑 刪除此廠商</button>
     </div>
+  </div>
+</div>
+
+<!-- ══ PAYMENT MANAGEMENT TAB（參考採購系統 desktop.html 付款管理頁，
+     發票系統一筆發票只有單一預計付款日，不像採購系統有分期付款明細，
+     因此改為以「排定中／付款中／已付清」比對每筆發票的預計付款日）══ -->
+<div id="tab-payment">
+  <div class="toolbar" style="gap:6px;flex-wrap:wrap">
+    <input type="text" id="psrch" placeholder="🔍 搜尋代碼、廠商、發票號碼…" oninput="debouncedRenderPayInv()">
+    <input type="date" id="pDateFilter" title="依日期篩選（發票日／驗收日／預計付款日）" oninput="renderPayInv()">
+    <button class="btn xs" onclick="document.getElementById('pDateFilter').value='';renderPayInv()" title="清除日期篩選">✕日期</button>
+    <div style="display:flex;gap:3px;align-items:center;border:1px solid var(--bd);border-radius:var(--r);padding:2px 4px;background:var(--sf2)">
+      <span style="font-size:10px;color:var(--tx3);padding:0 4px 0 2px;white-space:nowrap">付款狀態</span>
+      <button class="flt-btn flt-pay active" data-val="" onclick="setPayFilter('',this)">全部</button>
+      <button class="flt-btn flt-pay" data-val="排定中" onclick="setPayFilter('排定中',this)">排定中</button>
+      <button class="flt-btn flt-pay" data-val="付款中" onclick="setPayFilter('付款中',this)">付款中</button>
+      <button class="flt-btn flt-pay" data-val="已付清" onclick="setPayFilter('已付清',this)">已付清</button>
+    </div>
+    <div class="spacer"></div>
+  </div>
+  <div class="content">
+    <div class="twrap">
+      <table>
+        <thead>
+          <tr>
+            <th>代碼</th><th>廠商</th><th>發票號碼</th><th>發票日期</th><th>幣別</th><th>稅別</th>
+            <th>完成日（驗收日）</th><th>預計付款日</th><th>備註</th><th>付款狀態</th>
+          </tr>
+        </thead>
+        <tbody id="ptb"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CALENDAR TAB（參考採購系統 desktop.html 行事曆頁，
+     採購系統顯示 ETD/ETA 交期事件，發票系統無交期概念，
+     改為顯示每筆發票的「預計付款日」事件）══ -->
+<div id="tab-calendar">
+  <div class="calwrap">
+    <div class="calctrl">
+      <select id="calY" onchange="renderCal()"></select>
+      <select id="calM" onchange="renderCal()">
+        <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option><option value="4">4月</option>
+        <option value="5">5月</option><option value="6">6月</option><option value="7">7月</option><option value="8">8月</option>
+        <option value="9">9月</option><option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+      </select>
+      <button class="btn sm" onclick="calPrev()">◀</button>
+      <button class="btn sm" onclick="calNext()">▶</button>
+      <button class="btn sm" onclick="calToday()">本月</button>
+      <div class="calleg">
+        <span><span class="legdot" style="background:var(--amber)"></span>預計付款日</span>
+        <span style="color:var(--tx3);font-size:10px">▪ 灰底＝週末 ▪ 紅底＝假日</span>
+      </div>
+    </div>
+    <div id="calgrid"></div>
   </div>
 </div>
 
@@ -804,6 +903,7 @@ async function startApp(){
   const t = Number(sessionStorage.getItem('inv_login_time') || 0);
   if(t && Date.now() - t >= SESSION_TTL){ _handleExpiry(); return; }
   _startHeartbeat();
+  initCalY();
   await load();
   _listNeedsRefresh=false; renderTable(); updateStats();
   // 自動備份完全交給後端每日排程（有異動才備份，見 Code.gs dailyBackupCheckTrigger），
@@ -1356,6 +1456,8 @@ function sw(name, btn){
     });
   }
   if(name === 'vendors') renderVendors();
+  if(name === 'payment') renderPayInv();
+  if(name === 'calendar') renderCal();
   if(name === 'list'){
     if(_listNeedsRefresh){ renderTable(); _listNeedsRefresh=false; }
     updateStats();
@@ -1441,6 +1543,139 @@ async function deleteVendorFromPanel(){
 }
 
 document.getElementById('vendor-ov').addEventListener('click', function(e){ if(e.target === this) closeVendorEdit(); }); document.getElementById('vendor-ov').style.display='none';
+
+// ══ PAYMENT MANAGEMENT（參考採購系統 desktop.html 付款管理頁）══
+// 發票系統一筆發票只有單一預計付款日，沒有採購系統那種分期付款明細，
+// 因此用「有無預計付款日」+「預計付款日是否已過」判斷付款狀態，
+// 邏輯對齊採購系統 renderPay() 裡的 payStatus()。
+const fD = d => d ? String(d).replace(/-/g,'/') : '—';
+function debounce(fn, delay){ let t; return function(...args){ clearTimeout(t); t=setTimeout(()=>fn.apply(this,args), delay); }; }
+const debouncedRenderPayInv = debounce(()=>renderPayInv(), 300);
+
+let payFilterSt = '';
+function setPayFilter(val, btn){
+  document.querySelectorAll('.flt-pay').forEach(b => b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  payFilterSt = val;
+  renderPayInv();
+}
+
+function payStatusInv(r){
+  if(!r.paydate) return { label:'排定中', cls:'b-sch' };
+  const today = new Date().toISOString().slice(0,10);
+  return r.paydate <= today ? { label:'已付清', cls:'b-done' } : { label:'付款中', cls:'b-pend' };
+}
+
+function renderPayInv(){
+  const q = (document.getElementById('psrch')||{value:''}).value.trim().toLowerCase();
+  const dFilter = (document.getElementById('pDateFilter')||{value:''}).value;
+  const tb = document.getElementById('ptb');
+  if(!tb) return;
+
+  function matchRec(r){
+    if(!q) return true;
+    return [r.code, r.vendor, r.invoice, r.remark, ...(r.po||[])]
+      .some(v => v && String(v).toLowerCase().includes(q));
+  }
+  function matchDate(r){
+    if(!dFilter) return true;
+    return [r.date, r.finish, r.paydate].some(d => d === dFilter);
+  }
+
+  let list = invoices.filter(r => matchRec(r) && matchDate(r));
+  if(payFilterSt) list = list.filter(r => payStatusInv(r).label === payFilterSt);
+  list = list.slice().sort((a,b) => String(a.paydate||'9999-99-99').localeCompare(String(b.paydate||'9999-99-99')));
+
+  tb.innerHTML = list.length ? list.map(r => {
+    const ps = payStatusInv(r);
+    return `<tr onclick="editRecord('${r.id}')" style="cursor:pointer">
+      <td style="font-family:'Courier New',monospace;font-weight:700">${esc(r.code)||'—'}</td>
+      <td style="font-weight:600">${esc(r.vendor)||'—'}</td>
+      <td style="font-family:'Courier New',monospace">${esc(r.invoice)||'—'}</td>
+      <td style="white-space:nowrap">${fD(r.date)}</td>
+      <td>${esc(r.currency)||'—'}</td>
+      <td>${esc(r.tax)||'—'}</td>
+      <td style="white-space:nowrap">${fD(r.finish)}</td>
+      <td style="white-space:nowrap;font-weight:600;color:var(--blue)">${fD(r.paydate)}</td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.remark)||''}">${esc(r.remark)||'—'}</td>
+      <td><span class="badge ${ps.cls}">${ps.label}</span></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="10"><div style="text-align:center;padding:24px;color:var(--tx3)">${dFilter?`無符合 ${dFilter} 的資料`:'無資料'}</div></td></tr>`;
+}
+
+// ══ CALENDAR（參考採購系統 desktop.html 行事曆頁；
+//     採購系統顯示 ETD/ETA 交期事件，發票系統沒有交期概念，
+//     改為顯示每筆發票的「預計付款日」事件，假日/週末樣式邏輯不變）══
+function initCalY(){
+  const s = document.getElementById('calY'); if(!s) return;
+  const n = new Date(); s.innerHTML='';
+  for(let y=n.getFullYear()-3; y<=n.getFullYear()+5; y++) s.innerHTML += `<option${y===n.getFullYear()?' selected':''}>${y}</option>`;
+  document.getElementById('calM').value = n.getMonth()+1;
+}
+function calToday(){ const n=new Date(); document.getElementById('calY').value=n.getFullYear(); document.getElementById('calM').value=n.getMonth()+1; renderCal(); }
+function calPrev(){ let y=+document.getElementById('calY').value, m=+document.getElementById('calM').value; m--; if(m<1){m=12;y--;} document.getElementById('calY').value=y; document.getElementById('calM').value=m; renderCal(); }
+function calNext(){ let y=+document.getElementById('calY').value, m=+document.getElementById('calM').value; m++; if(m>12){m=1;y++;} document.getElementById('calY').value=y; document.getElementById('calM').value=m; renderCal(); }
+
+function renderCal(){
+  const calYEl = document.getElementById('calY');
+  if(calYEl && !calYEl.options.length) initCalY();
+  const y = +document.getElementById('calY').value, m = +document.getElementById('calM').value;
+  const now = new Date();
+  const evs = {};
+  invoices.forEach(r => {
+    if(!r.paydate) return;
+    if(!evs[r.paydate]) evs[r.paydate] = [];
+    evs[r.paydate].push({ cls:'evpay', lbl:`(PAY)${r.code||''}§${r.vendor||''}§${r.invoice||''}` });
+  });
+  const fd = new Date(y,m-1,1), ld = new Date(y,m,0);
+  const sdow = fd.getDay(), tot = ld.getDate();
+  let h = `<div class="calgrid"><div class="calwkhd"><div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div></div><div class="calbody">`;
+  const pl = new Date(y,m-1,0);
+  for(let i=0;i<sdow;i++) h += `<div class="calcell om wknd"><div class="caldate">${pl.getDate()-sdow+1+i}</div></div>`;
+  for(let d=1; d<=tot; d++){
+    const dt = new Date(y,m-1,d), dow = dt.getDay();
+    const ds = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const isToday = dt.toDateString() === now.toDateString();
+    const isWknd = dow===0||dow===6, isHol = holSet.has(ds);
+    let cls = 'calcell'; if(isWknd) cls += ' wknd'; if(isHol) cls += ' hol'; if(isToday) cls += ' today';
+    const cellEvs = evs[ds] || [];
+    const holN = (holidays.find(hh => hh.date === ds) || {}).name || '';
+    const eHtml = cellEvs.map(e => `<div class="calev ${e.cls}" title="${esc(e.lbl)}">${esc(e.lbl)}</div>`).join('');
+    const safeEvs = JSON.stringify(cellEvs).replace(/"/g,"'").replace(/\\/g,'\\\\');
+    h += `<div class="${cls}" onclick="showDayPopup('${ds}',${safeEvs},'${holN.replace(/'/g,"\\'")}')" style="cursor:pointer"><div class="caldate">${d}</div>${eHtml}</div>`;
+  }
+  const rem = (7-(sdow+tot)%7)%7;
+  for(let i=1;i<=rem;i++){ const dow=(sdow+tot+i-1)%7; h += `<div class="calcell om${dow===0||dow===6?' wknd':''}"><div class="caldate">${i}</div></div>`; }
+  h += '</div></div>';
+  document.getElementById('calgrid').innerHTML = h;
+}
+
+function showDayPopup(ds, evList, holName){
+  const [y,m,d] = ds.split('-').map(Number);
+  const dt = new Date(y,m-1,d);
+  const wdays = ['日','一','二','三','四','五','六'];
+  const title = `${y}/${String(m).padStart(2,'0')}/${String(d).padStart(2,'0')} (${wdays[dt.getDay()]})`;
+  let body = '';
+  if(holName) body += `<div class="cal-ev-item cal-ev-hol"><div class="cal-ev-title">🎌 ${esc(holName)}</div><div class="cal-ev-detail">國定假日</div></div>`;
+  if(!evList || !evList.length){
+    if(!holName) body += '<div class="cal-no-ev">當天無排程</div>';
+  } else {
+    evList.forEach(ev => {
+      const raw = ev.lbl.replace(/^\(PAY\)/,'');
+      const pts = raw.split('§');
+      const code = pts[0]||'', vendor = pts[1]||'', inv = pts[2]||'';
+      body += `<div class="cal-ev-item cal-ev-pay">
+        <div class="cal-ev-title">💰 預計付款</div>
+        <div class="cal-ev-detail">代碼：${esc(code)}<br>廠商：${esc(vendor)}${inv?`<br>發票號：${esc(inv)}`:''}</div>
+      </div>`;
+    });
+  }
+  const ov = document.createElement('div');
+  ov.className = 'cal-day-popup-ov';
+  ov.innerHTML = `<div class="cal-day-popup"><div class="cal-day-popup-hd"><div class="cal-day-popup-title">${title}</div><button onclick="this.closest('.cal-day-popup-ov').remove()" style="background:none;border:none;cursor:pointer;font-size:18px;color:var(--tx3);padding:0">✕</button></div><div class="cal-day-popup-body">${body}</div></div>`;
+  ov.addEventListener('click', function(e){ if(e.target===ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
 
 // ══ HOLIDAY MANAGER ════════════════════════════════
 function openHolModal(){ renderHolList(); document.getElementById('hol-modal').classList.add('open'); }
