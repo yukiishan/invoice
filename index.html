@@ -1829,6 +1829,38 @@ function exportCSV(){
   a.download = 'invoices_' + new Date().toISOString().slice(0,10) + '.csv'; a.click();
 }
 
+// ══ 限制英數符號欄位（自動過濾中文／注音）═══════════════
+// 瀏覽器沒有任何 API 可以強制切換作業系統的輸入法狀態（中文/英文鍵盤屬於
+// 系統層級，網頁完全無法控制），所以這裡改用「即時過濾」達到同樣效果：
+// 不論輸入當下用的是中文、注音、拼音或任何輸入法，只要打完（含選字送出）
+// 送進欄位的字元只要不在允許清單內（英文字母／數字／指定符號），就會被
+// 立刻濾掉，等於這些欄位最終不可能留下中文或注音符號。
+function restrictInput(id, disallowedPattern){
+  const el = document.getElementById(id);
+  if(!el) return;
+  function filter(){
+    const before = el.value;
+    const start = el.selectionStart == null ? before.length : el.selectionStart;
+    const after = before.replace(disallowedPattern, '');
+    if(after === before) return;
+    const removedBeforeCursor = before.slice(0, start).length - before.slice(0, start).replace(disallowedPattern, '').length;
+    el.value = after;
+    const newPos = Math.max(0, start - removedBeforeCursor);
+    try { el.setSelectionRange(newPos, newPos); } catch(e){}
+  }
+  // input：一般輸入、貼上、以及大多數瀏覽器 IME 選字完成後都會觸發
+  // compositionend：中文/注音等組字型輸入法選字送出時觸發，雙重保險
+  el.addEventListener('input', filter);
+  el.addEventListener('compositionend', filter);
+}
+// 新增發票：代碼／發票號碼／PO#（PO# 額外允許連字號「-」與星號「*」，供自動轉換字軌用）
+restrictInput('f-code',    /[^A-Za-z0-9]/g);
+restrictInput('f-invoice', /[^A-Za-z0-9]/g);
+restrictInput('po-inp',    /[^A-Za-z0-9\-*]/g);
+// 廠商資料維護：代碼／付款時間（天數，額外保險，type=number 原生也會擋掉大部分中文輸入）
+restrictInput('vp-code',    /[^A-Za-z0-9]/g);
+restrictInput('vp-paydays', /[^0-9]/g);
+
 // ══ 搜尋快捷鍵（發票列表／廠商資料維護／付款管理）═══════
 // Ctrl+F（Mac 為 Cmd+F）：攔截瀏覽器內建搜尋，改為聚焦目前分頁的搜尋欄
 // Esc：若焦點在搜尋欄，清空並取消搜尋（重新顯示全部資料）
