@@ -805,19 +805,8 @@ async function startApp(){
   _startHeartbeat();
   await load();
   _listNeedsRefresh=false; renderTable(); updateStats();
-  _autoBackupCheck();
-}
-
-// ══ AUTO BACKUP ════════════════════════════════════
-const LAST_BK_KEY = 'inv_last_backup';
-async function _autoBackupCheck(){
-  const last  = localStorage.getItem(LAST_BK_KEY);
-  const today = new Date().toISOString().slice(0,10);
-  if(last === today) return;
-  try {
-    await apiPost('backup', { auto: true });
-    localStorage.setItem(LAST_BK_KEY, today);
-  } catch(e) { console.warn('[AutoBackup]', e); }
+  // 自動備份完全交給後端每日排程（有異動才備份，見 Code.gs dailyBackupCheckTrigger），
+  // 前端不再於開頁時強制呼叫 backup，避免多裝置/多瀏覽器重複備份。
 }
 
 // ══ SAVE FUNCTIONS ═════════════════════════════════
@@ -855,7 +844,6 @@ async function runManualBackup(){
   try {
     const res = await apiPost('backup', {});
     if(res && res.error) throw new Error(res.error);
-    localStorage.setItem(LAST_BK_KEY, new Date().toISOString().slice(0,10));
     alert('備份完成 ✓\n檔名：' + (res && res.backupName ? res.backupName : ''));
     _loadBackupList();
   } catch(e){ if(e.message !== '請重新登入') alert('備份失敗：' + e.message); }
