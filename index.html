@@ -99,6 +99,12 @@
       「發票歷史資料」工作表、getInvoiceHistory／runArchive 兩個 API，
       以及每日 01:00 的歸檔排程；後端程式碼另外提供，更新後需在 Apps
       Script 編輯器手動執行一次 createDailyArchiveTrigger() 才會生效
+
+  v1.13  2026-08-28
+    - 發票形式「電子」標籤底色太深，改為更淺的 #F0DED4（字色維持不變）
+    - 付款管理／歷史資料的「幣別」欄位改成跟發票列表一樣用底色徽章顯示
+      台幣／外幣，不再是純文字
+    - 行事曆點選日期彈出的「預計付款」明細，新增顯示 PO#
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -201,7 +207,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
 .b-cur-tw{background:var(--bbg);color:var(--btx)}
 .b-cur-fx{background:var(--pbg);color:var(--ptx)}
 .b-inv3{background:var(--gbg);color:var(--gtx)}
-.b-invE{background:#C1B0A7;color:#8592A2}
+.b-invE{background:#F0DED4;color:#8592A2}
 .po-list{display:flex;flex-wrap:wrap;gap:3px}
 .po-chip{background:var(--pbg);color:var(--ptx);border-radius:20px;padding:1px 6px;font-size:10px;font-weight:600;white-space:nowrap}
 .finish-inp{font-size:11px;padding:2px 5px;border:1px solid var(--bd);border-radius:5px;background:var(--sf2);color:var(--tx);font-family:inherit;width:112px}
@@ -1710,6 +1716,8 @@ function payLikeRowHtml(r, clickable){
     : '—';
   const it = deriveInvType(r.date, r.invoice) || (r.invtype && r.invtype!=='—' ? r.invtype : '');
   const itHtml = it ? `<span class="badge ${it==='三聯式'?'b-inv3':'b-invE'}">${it}</span>` : '—';
+  // 幣別：跟發票列表一樣用底色徽章顯示，而不是純文字
+  const curHtml = r.currency ? `<span class="badge ${r.currency==='台幣'?'b-cur-tw':'b-cur-fx'}">${esc(r.currency)}</span>` : '—';
   const trOpen = clickable ? `<tr onclick="editRecord('${r.id}')" style="cursor:pointer">` : `<tr>`;
   return `${trOpen}
       <td style="font-family:'Courier New',monospace;font-weight:700">${esc(r.code)||'—'}</td>
@@ -1718,7 +1726,7 @@ function payLikeRowHtml(r, clickable){
       <td style="font-family:'Courier New',monospace">${esc(r.invoice)||'—'}</td>
       <td>${poHtml}</td>
       <td>${itHtml}</td>
-      <td>${esc(r.currency)||'—'}</td>
+      <td>${curHtml}</td>
       <td>${esc(r.tax)||'—'}</td>
       <td style="white-space:nowrap">${fD(r.finish)}</td>
       <td style="white-space:nowrap;font-weight:600;color:var(--blue)">${fD(r.paydate)}</td>
@@ -1846,7 +1854,7 @@ function renderCal(){
   invoices.forEach(r => {
     if(!r.paydate) return;
     if(!evs[r.paydate]) evs[r.paydate] = [];
-    evs[r.paydate].push({ cls:'evpay', lbl:`(PAY)${r.code||''}§${r.vendor||''}§${r.invoice||''}` });
+    evs[r.paydate].push({ cls:'evpay', lbl:`(PAY)${r.code||''}§${r.vendor||''}§${r.invoice||''}§${(r.po||[]).join(', ')}` });
   });
   const fd = new Date(y,m-1,1), ld = new Date(y,m,0);
   const sdow = fd.getDay(), tot = ld.getDate();
@@ -1884,10 +1892,10 @@ function showDayPopup(ds, evList, holName){
     evList.forEach(ev => {
       const raw = ev.lbl.replace(/^\(PAY\)/,'');
       const pts = raw.split('§');
-      const code = pts[0]||'', vendor = pts[1]||'', inv = pts[2]||'';
+      const code = pts[0]||'', vendor = pts[1]||'', inv = pts[2]||'', po = pts[3]||'';
       body += `<div class="cal-ev-item cal-ev-pay">
         <div class="cal-ev-title">💰 預計付款</div>
-        <div class="cal-ev-detail">代碼：${esc(code)}<br>廠商：${esc(vendor)}${inv?`<br>發票號：${esc(inv)}`:''}</div>
+        <div class="cal-ev-detail">代碼：${esc(code)}<br>廠商：${esc(vendor)}${inv?`<br>發票號：${esc(inv)}`:''}${po?`<br>PO#：${esc(po)}`:''}</div>
       </div>`;
     });
   }
