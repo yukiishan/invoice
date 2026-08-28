@@ -49,6 +49,14 @@
     - 新增發票 PO# 欄位：比照代碼、發票號碼，輸入時即時強制轉為大寫（保留
       游標位置，不影響 -／* 開頭自動補上 LMTL-／FMTL- 前綴的邏輯）；已複查
       確認代碼、發票號碼欄位本來就有強制大寫，行為不變
+
+  v1.6  2026-08-28
+    - 發票列表明細新增「發票形式」欄位，位置在發票號碼與稅別之間（發票
+      號碼／發票形式／幣別／稅別），顯示新增發票時自動判斷的三聯式／電子
+
+  v1.7  2026-08-28
+    - 發票列表明細欄位順序調整為：代碼／廠商／發票日期／發票號碼／PO#／
+      發票形式／幣別／稅別／完成日（驗收日）／預計付款日／操作
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -150,6 +158,8 @@ tbody td{padding:5px 7px;vertical-align:middle}
 .b-tax{background:var(--sf2);color:var(--tx2)}
 .b-cur-tw{background:var(--bbg);color:var(--btx)}
 .b-cur-fx{background:var(--pbg);color:var(--ptx)}
+.b-inv3{background:var(--gbg);color:var(--gtx)}
+.b-invE{background:var(--bbg);color:var(--btx)}
 .po-list{display:flex;flex-wrap:wrap;gap:3px}
 .po-chip{background:var(--pbg);color:var(--ptx);border-radius:20px;padding:1px 6px;font-size:10px;font-weight:600;white-space:nowrap}
 .finish-inp{font-size:11px;padding:2px 5px;border:1px solid var(--bd);border-radius:5px;background:var(--sf2);color:var(--tx);font-family:inherit;width:112px}
@@ -373,7 +383,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
         <thead>
           <tr>
             <th>代碼</th><th>廠商</th><th>發票日期</th><th>發票號碼</th>
-            <th>幣別</th><th>稅別</th><th>PO#</th>
+            <th>PO#</th><th>發票形式</th><th>幣別</th><th>稅別</th>
             <th>完成日（驗收日）</th><th>預計付款日</th><th>操作</th>
           </tr>
         </thead>
@@ -1356,7 +1366,7 @@ function renderTable(){
   if(!data.length){
     const tr = document.createElement('tr');
     const td = document.createElement('td');
-    td.colSpan = 10; td.style.cssText = 'text-align:center;padding:28px;color:var(--tx3)';
+    td.colSpan = 11; td.style.cssText = 'text-align:center;padding:28px;color:var(--tx3)';
     td.textContent = '無符合記錄'; tr.appendChild(td); tbody.appendChild(tr);
   } else {
     data.forEach(r => {
@@ -1375,6 +1385,14 @@ function renderTable(){
       // 發票號碼
       const tdI = document.createElement('td');
       tdI.className='mono'; tdI.textContent=r.invoice||'—'; tr.appendChild(tdI);
+      // PO#
+      const tdP = document.createElement('td');
+      if(r.po&&r.po.length){ const dl=document.createElement('div'); dl.className='po-list'; r.po.forEach(p=>{ const sp=document.createElement('span'); sp.className='po-chip'; sp.textContent=p; dl.appendChild(sp); }); tdP.appendChild(dl); } else tdP.textContent='—';
+      tr.appendChild(tdP);
+      // 發票形式
+      const tdIT = document.createElement('td');
+      if(r.invtype && r.invtype!=='—'){ const sp=document.createElement('span'); sp.className='badge '+(r.invtype==='三聯式'?'b-inv3':'b-invE'); sp.textContent=r.invtype; tdIT.appendChild(sp); } else tdIT.textContent='—';
+      tr.appendChild(tdIT);
       // 幣別
       const tdCur = document.createElement('td');
       if(r.currency){ const sp=document.createElement('span'); sp.className='badge '+(r.currency==='台幣'?'b-cur-tw':'b-cur-fx'); sp.textContent=r.currency; tdCur.appendChild(sp); } else tdCur.textContent='—';
@@ -1383,10 +1401,6 @@ function renderTable(){
       const tdT = document.createElement('td');
       if(r.tax){ const sp=document.createElement('span'); sp.className='badge b-tax'; sp.textContent=r.tax; tdT.appendChild(sp); } else tdT.textContent='—';
       tr.appendChild(tdT);
-      // PO#
-      const tdP = document.createElement('td');
-      if(r.po&&r.po.length){ const dl=document.createElement('div'); dl.className='po-list'; r.po.forEach(p=>{ const sp=document.createElement('span'); sp.className='po-chip'; sp.textContent=p; dl.appendChild(sp); }); tdP.appendChild(dl); } else tdP.textContent='—';
-      tr.appendChild(tdP);
       // 完成日
       const tdF = document.createElement('td');
       tdF.style.whiteSpace='nowrap';
