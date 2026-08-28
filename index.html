@@ -138,8 +138,9 @@ tbody td{padding:5px 7px;vertical-align:middle}
 .vm-row{background:var(--sf2);border:1px solid var(--bd);border-radius:var(--r);padding:8px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .15s;margin-bottom:5px}
 .vm-row:hover{border-color:var(--bd2);background:var(--sf)}
 .vm-code{background:var(--bbg);color:var(--btx);border-radius:5px;padding:2px 8px;font-family:'Courier New',monospace;font-size:11px;font-weight:700;flex-shrink:0;min-width:52px;text-align:center}
-.vm-name{font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vm-name{font-size:12px;font-weight:600;flex-shrink:0;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vm-meta{font-size:10px;color:var(--tx3);white-space:nowrap;flex-shrink:0}
+.vm-spacer{flex:1}
 
 /* ── Modals ── */
 .mkov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center}
@@ -450,7 +451,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
 
       <div style="display:flex;gap:6px;justify-content:flex-end;padding-top:10px;border-top:1px solid var(--bd)">
         <button class="btn warn" id="cancel-btn" onclick="cancelEdit()" style="display:none">取消更新</button>
-        <button class="btn primary" id="submit-btn" onclick="submitForm()">儲存發票</button>
+        <button class="btn primary" id="submit-btn" tabindex="4" onclick="submitForm()">儲存發票</button>
       </div>
     </div>
   </div>
@@ -474,27 +475,27 @@ tbody td{padding:5px 7px;vertical-align:middle}
     <div class="dethd">
       <button class="detback" onclick="closeVendorEdit()">←</button>
       <h2 id="vp-title">廠商資料</h2>
-      <button class="btn primary sm" onclick="saveVendorPanel()">✓ 儲存</button>
+      <button class="btn primary sm" id="vp-save-btn" tabindex="6" onclick="saveVendorPanel()">✓ 儲存</button>
     </div>
     <div class="detbody">
       <div class="sechd">廠商基本資料</div>
       <div class="fgg c2" style="margin-bottom:10px">
         <div class="fg">
           <label>代碼</label>
-          <input type="text" id="vp-code" maxlength="6"
+          <input type="text" id="vp-code" maxlength="6" tabindex="1"
             style="font-family:'Courier New',monospace;font-weight:700;text-transform:uppercase;font-size:13px;letter-spacing:.06em"
             oninput="const s=this.selectionStart;this.value=this.value.toUpperCase();this.setSelectionRange(s,s);checkVendorCodeDup(this.value)">
           <div id="vpCodeDupWarn" style="color:var(--rtx);font-size:10px;margin-top:2px;min-height:12px;font-weight:600"></div>
         </div>
         <div class="fg">
           <label>廠商名稱</label>
-          <input type="text" id="vp-name" placeholder="廠商名稱">
+          <input type="text" id="vp-name" placeholder="廠商名稱" tabindex="2">
         </div>
       </div>
       <div class="fgg c3" style="margin-bottom:24px">
         <div class="fg">
           <label>稅別</label>
-          <select id="vp-tax">
+          <select id="vp-tax" tabindex="3">
             <option value="">— 請選擇 —</option>
             <option value="應稅">應稅</option>
             <option value="零稅">零稅</option>
@@ -503,11 +504,11 @@ tbody td{padding:5px 7px;vertical-align:middle}
         </div>
         <div class="fg">
           <label>付款時間（天）</label>
-          <input type="number" id="vp-paydays" min="0" placeholder="30">
+          <input type="number" id="vp-paydays" min="0" placeholder="30" tabindex="4">
         </div>
         <div class="fg">
           <label>幣別</label>
-          <select id="vp-currency">
+          <select id="vp-currency" tabindex="5">
             <option value="">— 請選擇 —</option>
             <option value="台幣">台幣</option>
             <option value="外幣">外幣</option>
@@ -1485,6 +1486,7 @@ function renderVendors(){
       <span class="vm-code">${esc(v.code)}</span>
       <span class="vm-name">${esc(v.name)||'—'}</span>
       <span class="vm-meta">${v.tax||'—'} ／ ${v.currency||'—'} ／ ${v.paydays?v.paydays+'天':'—'}</span>
+      <span class="vm-spacer"></span>
       <span style="color:var(--tx3);font-size:13px">›</span>
     </div>`).join('')
     : `<div style="text-align:center;padding:24px;color:var(--tx3);font-size:12px">無符合廠商</div>`;
