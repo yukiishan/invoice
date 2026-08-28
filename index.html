@@ -138,8 +138,8 @@ tbody td{padding:5px 7px;vertical-align:middle}
 .vm-row{background:var(--sf2);border:1px solid var(--bd);border-radius:var(--r);padding:8px 12px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:border-color .15s;margin-bottom:5px}
 .vm-row:hover{border-color:var(--bd2);background:var(--sf)}
 .vm-code{background:var(--bbg);color:var(--btx);border-radius:5px;padding:2px 8px;font-family:'Courier New',monospace;font-size:11px;font-weight:700;flex-shrink:0;min-width:52px;text-align:center}
-.vm-name{font-size:12px;font-weight:600;flex:1}
-.vm-meta{font-size:10px;color:var(--tx3);white-space:nowrap}
+.vm-name{font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vm-meta{font-size:10px;color:var(--tx3);white-space:nowrap;flex-shrink:0}
 
 /* ── Modals ── */
 .mkov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center}
@@ -440,7 +440,8 @@ tbody td{padding:5px 7px;vertical-align:middle}
           <label>代碼</label>
           <input type="text" id="vp-code" maxlength="6"
             style="font-family:'Courier New',monospace;font-weight:700;text-transform:uppercase;font-size:13px;letter-spacing:.06em"
-            oninput="this.value=this.value.toUpperCase()">
+            oninput="const s=this.selectionStart;this.value=this.value.toUpperCase();this.setSelectionRange(s,s);checkVendorCodeDup(this.value)">
+          <div id="vpCodeDupWarn" style="color:var(--rtx);font-size:10px;margin-top:2px;min-height:12px;font-weight:600"></div>
         </div>
         <div class="fg">
           <label>廠商名稱</label>
@@ -1380,10 +1381,8 @@ function renderVendors(){
   document.getElementById('vm-list').innerHTML = list.length ? list.map(v => `
     <div class="vm-row" onclick="openVendorEdit('${v.code}')">
       <span class="vm-code">${esc(v.code)}</span>
-      <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0">
-        <span class="vm-name">${esc(v.name)||'—'}</span>
-        <span class="vm-meta">${v.tax||'—'} ／ ${v.currency||'—'} ／ ${v.paydays?v.paydays+'天':'—'}</span>
-      </div>
+      <span class="vm-name">${esc(v.name)||'—'}</span>
+      <span class="vm-meta">${v.tax||'—'} ／ ${v.currency||'—'} ／ ${v.paydays?v.paydays+'天':'—'}</span>
       <span style="color:var(--tx3);font-size:13px">›</span>
     </div>`).join('')
     : `<div style="text-align:center;padding:24px;color:var(--tx3);font-size:12px">無符合廠商</div>`;
@@ -1399,10 +1398,20 @@ function openVendorEdit(code){
   document.getElementById('vp-paydays').value   = v ? v.paydays||''  : '';
   document.getElementById('vp-currency').value  = v ? v.currency||'' : '';
   document.getElementById('vp-del-btn').style.display = code ? '' : 'none';
+  const dw=document.getElementById('vpCodeDupWarn'); if(dw) dw.textContent='';
   const ov=document.getElementById('vendor-ov'); ov.style.display='flex';
   setTimeout(()=>{ const vc=document.getElementById('vp-code'); if(vc) vc.focus(); }, 80);
 }
 function closeVendorEdit(){ document.getElementById('vendor-ov').style.display='none'; }
+
+function checkVendorCodeDup(code){
+  const warn = document.getElementById('vpCodeDupWarn');
+  if(!warn) return;
+  if(!code){ warn.textContent=''; return; }
+  const cv = String(code).toUpperCase();
+  const isDup = vendors.some(v => v.code && String(v.code).toUpperCase() === cv && v.code !== vpEditCode);
+  warn.textContent = isDup ? '⚠ 此廠商代號已存在' : '';
+}
 
 async function saveVendorPanel(){
   const code = document.getElementById('vp-code').value.trim().toUpperCase();
@@ -1413,10 +1422,10 @@ async function saveVendorPanel(){
   const paydays  = document.getElementById('vp-paydays').value.trim();
   const currency = document.getElementById('vp-currency').value;
   if(vpEditCode){
-    if(code !== vpEditCode && vendors.find(v => v.code === code)){ ntf('代碼已存在'); return; }
+    if(code !== vpEditCode && vendors.find(v => v.code === code)){ ntf('⚠ 此廠商代號已存在'); return; }
     const i = vendors.findIndex(v => v.code === vpEditCode); if(i > -1) vendors[i] = {code,name,tax,paydays,currency};
   } else {
-    if(vendors.find(v => v.code === code)){ ntf('代碼已存在'); return; }
+    if(vendors.find(v => v.code === code)){ ntf('⚠ 此廠商代號已存在'); return; }
     vendors.push({code,name,tax,paydays,currency});
   }
   renderVendors(); closeVendorEdit(); ntf('✓ 廠商資料已儲存（同步中...）');
