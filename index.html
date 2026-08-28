@@ -73,6 +73,17 @@
     - 付款管理欄位順序調整為：代碼／廠商／發票日期／發票號碼／PO#／
       發票形式／幣別／稅別／完成日（驗收日）／預計付款日／備註／付款狀態，
       並新增 PO# 與發票形式欄位
+
+  v1.10  2026-08-28
+    - 修正發票列表點選完成日儲存後，完成日欄位顯示成預計付款日的值、
+      預計付款日欄位卻變成 — 的問題：程式原本用「第幾個欄位」的寫死位置
+      去更新預計付款日儲存格，但欄位順序已經調整過幾次，位置對不上導致
+      蓋錯欄位；改用欄位自身的 class 直接定位，之後欄位順序再調整也不會
+      再跑掉（已驗收頁面本來就是重新整批渲染，不受影響，資料其實都正確）
+
+  v1.11  2026-08-28
+    - 發票形式「電子」標籤底色跟幣別「台幣」標籤太像，容易搞混；電子標籤
+      改為底色 #C1B0A7、字色 #8592A2，跟台幣的藍色標籤明顯區分
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -175,7 +186,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
 .b-cur-tw{background:var(--bbg);color:var(--btx)}
 .b-cur-fx{background:var(--pbg);color:var(--ptx)}
 .b-inv3{background:var(--gbg);color:var(--gtx)}
-.b-invE{background:var(--bbg);color:var(--btx)}
+.b-invE{background:#C1B0A7;color:#8592A2}
 .po-list{display:flex;flex-wrap:wrap;gap:3px}
 .po-chip{background:var(--pbg);color:var(--ptx);border-radius:20px;padding:1px 6px;font-size:10px;font-weight:600;white-space:nowrap}
 .finish-inp{font-size:11px;padding:2px 5px;border:1px solid var(--bd);border-radius:5px;background:var(--sf2);color:var(--tx);font-family:inherit;width:112px}
@@ -1346,9 +1357,9 @@ async function saveFinish(id, val){
     // 完成日欄位：input 換成 badge
     const inp = tr.querySelector('.finish-inp');
     if(inp) inp.parentElement.innerHTML = `<span class="badge b-done" style="white-space:nowrap">✓ ${val}</span>`;
-    // 預計付款日欄位（第9個 td，index 8）
-    const tds = tr.querySelectorAll('td');
-    if(tds[8]) { tds[8].textContent = r.paydate || '—'; tds[8].style.color='var(--blue)'; tds[8].style.fontWeight='600'; }
+    // 預計付款日欄位：用 class 定位，不用欄位順序 index（欄位順序之後若再調整也不會跑掉）
+    const tdPayEl = tr.querySelector('.td-paydate');
+    if(tdPayEl){ tdPayEl.textContent = r.paydate || '—'; tdPayEl.style.color='var(--blue)'; tdPayEl.style.fontWeight='600'; }
   }
   updateStats();
   if(!cur) ntf('⚠ 此發票未設定幣別，無法計算預計付款日');
@@ -1466,6 +1477,7 @@ function renderTable(){
       tr.appendChild(tdF);
       // 預計付款日
       const tdPay = document.createElement('td');
+      tdPay.className='td-paydate';
       tdPay.style.cssText='white-space:nowrap;font-weight:600;color:var(--blue)';
       tdPay.textContent=r.paydate||'—'; tr.appendChild(tdPay);
       // 操作
