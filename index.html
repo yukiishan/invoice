@@ -375,11 +375,11 @@ tbody td{padding:5px 7px;vertical-align:middle}
       <div class="fgg" style="grid-template-columns:148px 1fr 100px 1fr">
         <div class="fg">
           <label>發票日期 <span style="color:var(--red)">*</span></label>
-          <input type="date" id="f-date" tabindex="-1" onchange="calcInvType()">
+          <input type="date" id="f-date" tabindex="2" onchange="calcInvType()">
         </div>
         <div class="fg">
           <label>發票號碼 Invoice#</label>
-          <input type="text" id="f-invoice" placeholder="YY05184726" tabindex="2"
+          <input type="text" id="f-invoice" placeholder="YY05184726" tabindex="3"
             oninput="this.value=this.value.toUpperCase();calcInvType()"
             style="font-family:'Courier New',monospace">
         </div>
@@ -390,7 +390,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
         <div class="fg">
           <label>PO# <span style="font-size:9px;color:var(--tx3);text-transform:none;font-weight:400">(Enter 或逗號新增多筆)</span></label>
           <div class="po-wrap" id="po-wrap" onclick="document.getElementById('po-inp').focus()">
-            <input class="po-input" id="po-inp" placeholder="LMTL-613059" tabindex="3" onkeydown="poKey(event)" oninput="poComma(event)">
+            <input class="po-input" id="po-inp" placeholder="LMTL-613059" tabindex="4" onkeydown="poKey(event)" oninput="poComma(event)">
           </div>
         </div>
       </div>
@@ -451,7 +451,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
 
       <div style="display:flex;gap:6px;justify-content:flex-end;padding-top:10px;border-top:1px solid var(--bd)">
         <button class="btn warn" id="cancel-btn" onclick="cancelEdit()" style="display:none">取消更新</button>
-        <button class="btn primary" id="submit-btn" tabindex="4" onclick="submitForm()">儲存發票</button>
+        <button class="btn primary" id="submit-btn" tabindex="5" onclick="submitForm()">儲存發票</button>
       </div>
     </div>
   </div>
