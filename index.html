@@ -105,6 +105,15 @@
     - 付款管理／歷史資料的「幣別」欄位改成跟發票列表一樣用底色徽章顯示
       台幣／外幣，不再是純文字
     - 行事曆點選日期彈出的「預計付款」明細，新增顯示 PO#
+
+  v1.14  2026-08-28
+    - 稅別（應稅／零稅／免稅）改為三種各自獨立的莫蘭迪低飽和色徽章，跟
+      發票形式、幣別、付款狀態等其他徽章顏色都不重複，發票列表／付款
+      管理／歷史資料三處統一套用同一套配色
+    - 付款管理／歷史資料原本稅別只是純文字，這次一併改成徽章樣式
+    - 確認歷史資料的發票形式／幣別底色與付款管理相同（兩者本來就共用
+      同一段渲染程式，理論上不會不同；若畫面上看起來有落差，請確認是否
+      已更新成最新版本的 index.html）
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -203,7 +212,10 @@ tbody td{padding:5px 7px;vertical-align:middle}
 .badge{display:inline-block;padding:2px 6px;border-radius:20px;font-size:10px;font-weight:600;white-space:nowrap}
 .b-done{background:var(--gbg);color:var(--gtx)}
 .b-pend{background:var(--abg);color:var(--atx)}
-.b-tax{background:var(--sf2);color:var(--tx2)}
+.b-tax{background:var(--sf2);color:var(--tx2)} /* 保留作為未知稅別值的中性備用樣式 */
+.b-tax-std{background:#F1DAE6;color:#642645}   /* 應稅：莫蘭迪莓粉色，跟電子/台幣/其他徽章色相都拉開 */
+.b-tax-zero{background:#D8EEEC;color:#246059}  /* 零稅：莫蘭迪藍綠色 */
+.b-tax-free{background:#EBDEF2;color:#512965}  /* 免稅：莫蘭迪紫丁香色 */
 .b-cur-tw{background:var(--bbg);color:var(--btx)}
 .b-cur-fx{background:var(--pbg);color:var(--ptx)}
 .b-inv3{background:var(--gbg);color:var(--gtx)}
@@ -1479,7 +1491,7 @@ function renderTable(){
       tr.appendChild(tdCur);
       // 稅別
       const tdT = document.createElement('td');
-      if(r.tax){ const sp=document.createElement('span'); sp.className='badge b-tax'; sp.textContent=r.tax; tdT.appendChild(sp); } else tdT.textContent='—';
+      if(r.tax){ const sp=document.createElement('span'); sp.className='badge '+taxBadgeClass(r.tax); sp.textContent=r.tax; tdT.appendChild(sp); } else tdT.textContent='—';
       tr.appendChild(tdT);
       // 完成日
       const tdF = document.createElement('td');
@@ -1705,6 +1717,16 @@ function payStatusInv(r){
   return r.paydate <= today ? { label:'已付清', cls:'b-done' } : { label:'付款中', cls:'b-pend' };
 }
 
+// 稅別徽章樣式：應稅／零稅／免稅三種各自獨立的莫蘭迪低飽和色，
+// 跟發票形式（三聯式/電子）、幣別（台幣/外幣）、付款狀態等其他徽章都不重複，
+// 發票列表／付款管理／歷史資料三處共用同一套判斷
+function taxBadgeClass(tax){
+  if(tax === '應稅') return 'b-tax-std';
+  if(tax === '零稅') return 'b-tax-zero';
+  if(tax === '免稅') return 'b-tax-free';
+  return 'b-tax'; // 未知的稅別值，退回中性樣式
+}
+
 // 付款管理／歷史資料共用的單列 HTML（欄位順序一致：代碼／廠商／發票日期／
 // 發票號碼／PO#／發票形式／幣別／稅別／完成日／預計付款日／備註／付款狀態）
 // clickable=true 時點列可開啟編輯（付款管理用，資料還在 invoices 陣列裡）；
@@ -1727,7 +1749,7 @@ function payLikeRowHtml(r, clickable){
       <td>${poHtml}</td>
       <td>${itHtml}</td>
       <td>${curHtml}</td>
-      <td>${esc(r.tax)||'—'}</td>
+      <td>${r.tax ? `<span class="badge ${taxBadgeClass(r.tax)}">${esc(r.tax)}</span>` : '—'}</td>
       <td style="white-space:nowrap">${fD(r.finish)}</td>
       <td style="white-space:nowrap;font-weight:600;color:var(--blue)">${fD(r.paydate)}</td>
       <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.remark)||''}">${esc(r.remark)||'—'}</td>
