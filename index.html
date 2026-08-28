@@ -84,6 +84,21 @@
   v1.11  2026-08-28
     - 發票形式「電子」標籤底色跟幣別「台幣」標籤太像，容易搞混；電子標籤
       改為底色 #C1B0A7、字色 #8592A2，跟台幣的藍色標籤明顯區分
+
+  v1.12  2026-08-28
+    - 新增「歷史資料」分頁（行事曆後面）：後端每天凌晨 01:00 自動排程，
+      把付款管理中「預計付款日」已經過了（<= 前一天）的發票搬到歷史資料，
+      並從發票列表／付款管理移除，避免這兩個分頁的資料持續累積
+      （例：2026/08/29 01:00 執行時，會把預計付款日 <= 2026/08/28 的
+      發票移到歷史資料）
+    - 歷史資料分頁：欄位標題與付款管理相同（代碼／廠商／發票日期／發票
+      號碼／PO#／發票形式／幣別／稅別／完成日／預計付款日／備註／付款
+      狀態），同樣凍結標題列僅內容捲動，並提供搜尋欄與日期搜尋；另外提供
+      「立即歸檔」按鈕可手動立即跑一次（測試或補跑用，平常會自動執行）
+    - ⚠️ 這個功能需要同步更新 Google Apps Script 後端（Code.gs），新增
+      「發票歷史資料」工作表、getInvoiceHistory／runArchive 兩個 API，
+      以及每日 01:00 的歸檔排程；後端程式碼另外提供，更新後需在 Apps
+      Script 編輯器手動執行一次 createDailyArchiveTrigger() 才會生效
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -363,6 +378,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
     <button class="tab" onclick="sw('vendors',this)">廠商資料維護</button>
     <button class="tab" onclick="sw('payment',this)">付款管理</button>
     <button class="tab" onclick="sw('calendar',this)">行事曆</button>
+    <button class="tab" onclick="sw('history',this)">歷史資料</button>
   </div>
   <div class="tb-right">
     <span id="hdr-count" style="font-size:11px;color:var(--tx3);margin-right:2px"></span>
@@ -658,6 +674,34 @@ tbody td{padding:5px 7px;vertical-align:middle}
       </div>
     </div>
     <div id="calgrid"></div>
+  </div>
+</div>
+
+<!-- ══ HISTORY TAB（歷史資料：每天凌晨 01:00 由後端自動排程，把付款管理
+     中「預計付款日」已過（<= 前一天）的發票搬過來，並從發票列表／付款
+     管理移除，避免資料持續累積。欄位標題與付款管理相同，一樣凍結標題列）══ -->
+<div id="tab-history">
+  <div class="toolbar" style="gap:6px;flex-wrap:wrap">
+    <input type="text" id="hsrch" placeholder="🔍 搜尋代碼、廠商、發票號碼…" oninput="debouncedRenderHistory()">
+    <input type="date" id="hDateFilter" title="依日期篩選（發票日／驗收日／預計付款日）" oninput="renderHistory()">
+    <button class="btn xs" onclick="document.getElementById('hDateFilter').value='';renderHistory()" title="清除日期篩選">✕日期</button>
+    <div class="spacer"></div>
+    <span style="font-size:10px;color:var(--tx3)" id="h-count"></span>
+    <button class="btn xs" id="archiveNowBtn" onclick="runArchiveNow()" title="手動立即執行一次歸檔（測試用，平常每天凌晨 01:00 會自動執行）">⏱ 立即歸檔</button>
+  </div>
+  <div class="content tbl-content">
+    <div class="twrap">
+      <table>
+        <thead>
+          <tr>
+            <th>代碼</th><th>廠商</th><th>發票日期</th><th>發票號碼</th><th>PO#</th>
+            <th>發票形式</th><th>幣別</th><th>稅別</th>
+            <th>完成日（驗收日）</th><th>預計付款日</th><th>備註</th><th>付款狀態</th>
+          </tr>
+        </thead>
+        <tbody id="htb"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -1545,6 +1589,7 @@ function sw(name, btn){
   if(name === 'vendors') renderVendors();
   if(name === 'payment') renderPayInv();
   if(name === 'calendar') renderCal();
+  if(name === 'history') loadHistory();
   if(name === 'list'){
     if(_listNeedsRefresh){ renderTable(); _listNeedsRefresh=false; }
     updateStats();
@@ -1654,6 +1699,34 @@ function payStatusInv(r){
   return r.paydate <= today ? { label:'已付清', cls:'b-done' } : { label:'付款中', cls:'b-pend' };
 }
 
+// 付款管理／歷史資料共用的單列 HTML（欄位順序一致：代碼／廠商／發票日期／
+// 發票號碼／PO#／發票形式／幣別／稅別／完成日／預計付款日／備註／付款狀態）
+// clickable=true 時點列可開啟編輯（付款管理用，資料還在 invoices 陣列裡）；
+// 歷史資料的紀錄已經從 invoices 移除，不能用同一個 editRecord，所以不可點擊
+function payLikeRowHtml(r, clickable){
+  const ps = payStatusInv(r);
+  const poHtml = (r.po && r.po.length)
+    ? `<div class="po-list">${r.po.map(p=>`<span class="po-chip">${esc(p)}</span>`).join('')}</div>`
+    : '—';
+  const it = deriveInvType(r.date, r.invoice) || (r.invtype && r.invtype!=='—' ? r.invtype : '');
+  const itHtml = it ? `<span class="badge ${it==='三聯式'?'b-inv3':'b-invE'}">${it}</span>` : '—';
+  const trOpen = clickable ? `<tr onclick="editRecord('${r.id}')" style="cursor:pointer">` : `<tr>`;
+  return `${trOpen}
+      <td style="font-family:'Courier New',monospace;font-weight:700">${esc(r.code)||'—'}</td>
+      <td style="font-weight:600">${esc(r.vendor)||'—'}</td>
+      <td style="white-space:nowrap">${fD(r.date)}</td>
+      <td style="font-family:'Courier New',monospace">${esc(r.invoice)||'—'}</td>
+      <td>${poHtml}</td>
+      <td>${itHtml}</td>
+      <td>${esc(r.currency)||'—'}</td>
+      <td>${esc(r.tax)||'—'}</td>
+      <td style="white-space:nowrap">${fD(r.finish)}</td>
+      <td style="white-space:nowrap;font-weight:600;color:var(--blue)">${fD(r.paydate)}</td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.remark)||''}">${esc(r.remark)||'—'}</td>
+      <td><span class="badge ${ps.cls}">${ps.label}</span></td>
+    </tr>`;
+}
+
 function renderPayInv(){
   const q = (document.getElementById('psrch')||{value:''}).value.trim().toLowerCase();
   const dFilter = (document.getElementById('pDateFilter')||{value:''}).value;
@@ -1674,28 +1747,81 @@ function renderPayInv(){
   if(payFilterSt) list = list.filter(r => payStatusInv(r).label === payFilterSt);
   list = list.slice().sort((a,b) => String(a.paydate||'9999-99-99').localeCompare(String(b.paydate||'9999-99-99')));
 
-  tb.innerHTML = list.length ? list.map(r => {
-    const ps = payStatusInv(r);
-    const poHtml = (r.po && r.po.length)
-      ? `<div class="po-list">${r.po.map(p=>`<span class="po-chip">${esc(p)}</span>`).join('')}</div>`
-      : '—';
-    const it = deriveInvType(r.date, r.invoice) || (r.invtype && r.invtype!=='—' ? r.invtype : '');
-    const itHtml = it ? `<span class="badge ${it==='三聯式'?'b-inv3':'b-invE'}">${it}</span>` : '—';
-    return `<tr onclick="editRecord('${r.id}')" style="cursor:pointer">
-      <td style="font-family:'Courier New',monospace;font-weight:700">${esc(r.code)||'—'}</td>
-      <td style="font-weight:600">${esc(r.vendor)||'—'}</td>
-      <td style="white-space:nowrap">${fD(r.date)}</td>
-      <td style="font-family:'Courier New',monospace">${esc(r.invoice)||'—'}</td>
-      <td>${poHtml}</td>
-      <td>${itHtml}</td>
-      <td>${esc(r.currency)||'—'}</td>
-      <td>${esc(r.tax)||'—'}</td>
-      <td style="white-space:nowrap">${fD(r.finish)}</td>
-      <td style="white-space:nowrap;font-weight:600;color:var(--blue)">${fD(r.paydate)}</td>
-      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(r.remark)||''}">${esc(r.remark)||'—'}</td>
-      <td><span class="badge ${ps.cls}">${ps.label}</span></td>
-    </tr>`;
-  }).join('') : `<tr><td colspan="12"><div style="text-align:center;padding:24px;color:var(--tx3)">${dFilter?`無符合 ${dFilter} 的資料`:'無資料'}</div></td></tr>`;
+  tb.innerHTML = list.length ? list.map(r => payLikeRowHtml(r, true)).join('')
+    : `<tr><td colspan="12"><div style="text-align:center;padding:24px;color:var(--tx3)">${dFilter?`無符合 ${dFilter} 的資料`:'無資料'}</div></td></tr>`;
+}
+
+// ══ HISTORY（歷史資料：每天凌晨 01:00 由後端自動排程搬過來的已過期付款
+//     發票，見 Code.gs 的 archiveOldPaymentsTrigger。前端只在切到此分頁時
+//     才向後端拉一次，避免每次登入都載入越來越多的歷史資料）══
+let invoiceHistory  = [];
+let _historyLoaded  = false;
+const debouncedRenderHistory = debounce(()=>renderHistory(), 300);
+
+function renderHistory(){
+  const q = (document.getElementById('hsrch')||{value:''}).value.trim().toLowerCase();
+  const dFilter = (document.getElementById('hDateFilter')||{value:''}).value;
+  const tb = document.getElementById('htb');
+  if(!tb) return;
+
+  function matchRec(r){
+    if(!q) return true;
+    return [r.code, r.vendor, r.invoice, r.remark, ...(r.po||[])]
+      .some(v => v && String(v).toLowerCase().includes(q));
+  }
+  function matchDate(r){
+    if(!dFilter) return true;
+    return [r.date, r.finish, r.paydate].some(d => d === dFilter);
+  }
+
+  let list = invoiceHistory.filter(r => matchRec(r) && matchDate(r));
+  // 歷史資料以「預計付款日」新到舊排序，最近歸檔的排前面比較直覺
+  list = list.slice().sort((a,b) => String(b.paydate||'').localeCompare(String(a.paydate||'')));
+
+  const cnt = document.getElementById('h-count');
+  if(cnt) cnt.textContent = list.length === invoiceHistory.length
+    ? ('共 ' + invoiceHistory.length + ' 筆')
+    : ('符合 ' + list.length + ' 筆／歷史資料共 ' + invoiceHistory.length + ' 筆');
+
+  tb.innerHTML = list.length ? list.map(r => payLikeRowHtml(r, false)).join('')
+    : `<tr><td colspan="12"><div style="text-align:center;padding:24px;color:var(--tx3)">${(dFilter||q)?'無符合的資料':'目前沒有歷史資料'}</div></td></tr>`;
+}
+
+// 載入歷史資料（預設只在第一次切到「歷史資料」分頁時打一次 API；force=true 可強制重新讀取）
+async function loadHistory(force){
+  if(_historyLoaded && !force){ renderHistory(); return; }
+  const tb = document.getElementById('htb');
+  if(tb) tb.innerHTML = `<tr><td colspan="12"><div style="text-align:center;padding:24px;color:var(--tx3)">載入中…</div></td></tr>`;
+  try{
+    const hist = await apiGet('getInvoiceHistory');
+    invoiceHistory = Array.isArray(hist) ? hist : [];
+    _historyLoaded = true;
+  }catch(e){
+    if(e.message !== '請重新登入') ntf('⚠ 歷史資料載入失敗：' + e.message);
+  }
+  renderHistory();
+}
+
+// 手動立即執行一次歸檔（測試/補跑用，平常由後端每日 01:00 自動排程執行）
+async function runArchiveNow(){
+  const btn = document.getElementById('archiveNowBtn');
+  const orig = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ 歸檔中…'; }
+  try{
+    const res = await apiPost('runArchive', {});
+    const n = res && typeof res.archived === 'number' ? res.archived : 0;
+    ntf(n > 0 ? ('✓ 已歸檔 ' + n + ' 筆到歷史資料') : 'ℹ 目前沒有需要歸檔的資料');
+    // 重新載入發票資料與歷史資料，讓畫面立刻反映最新狀態
+    const inv = await apiGet('getInvoices').catch(()=>null);
+    if(Array.isArray(inv)){ invoices = inv; lSave('invoices', invoices); }
+    await loadHistory(true);
+    _listNeedsRefresh = true;
+    renderTable(); updateStats(); renderPayInv();
+  }catch(e){
+    if(e.message !== '請重新登入') ntf('⚠ 歸檔失敗：' + e.message);
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = orig; }
+  }
 }
 
 // ══ CALENDAR（參考採購系統 desktop.html 行事曆頁；
@@ -2012,11 +2138,12 @@ const INVOICE_FASTPATH_IDS = ['f-code','f-date','f-invoice','po-inp','submit-btn
 // ══ 搜尋快捷鍵（發票列表／廠商資料維護／付款管理）═══════
 // Ctrl+F（Mac 為 Cmd+F）：攔截瀏覽器內建搜尋，改為聚焦目前分頁的搜尋欄
 // Esc：若焦點在搜尋欄，清空並取消搜尋（重新顯示全部資料）
-const SEARCH_INPUT_BY_TAB = { list:'s-text', vendors:'vm-search', payment:'psrch' };
+const SEARCH_INPUT_BY_TAB = { list:'s-text', vendors:'vm-search', payment:'psrch', history:'hsrch' };
 const SEARCH_RERENDER = {
   's-text':   renderTable,
   'vm-search':renderVendors,
-  'psrch':    renderPayInv
+  'psrch':    renderPayInv,
+  'hsrch':    renderHistory
 };
 document.addEventListener('keydown', function(e){
   const key = e.key;
