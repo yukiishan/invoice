@@ -142,6 +142,33 @@
       自動算出來的，不需要手動 Tab 過去），所以完成日的年／月／日移動完
       最後一段、再按一次 Tab，會直接跳到「儲存發票」，中間不會停在預計
       付款日；預計付款日本身仍然可以直接用滑鼠點選、手動修改
+
+  v1.18  2026-08-28
+    - 修正發票日期／完成日欄位按 Tab 在年／月／日移動完，會先多停在
+      欄位右邊那顆小日曆圖示按鈕上、才會跳到下一個欄位的問題：原生
+      date 欄位除了年／月／日三段，瀏覽器本身還會把那顆日曆圖示也算
+      進 Tab 可停留的焦點之一，這裡直接把圖示隱藏掉，年／月／日移動完
+      最後一段，Tab 就會直接跳到下一個欄位，不會多停一下；日期還是能
+      直接用鍵盤打數字輸入，不受影響（全站所有 date 欄位統一套用，包含
+      發票日期、完成日、預計付款日、各分頁的日期篩選欄等）
+
+  v1.19  2026-08-28
+    - 還原 v1.18：改回保留日期欄位右邊的小日曆圖示（讓滑鼠仍然可以點它
+      開啟月曆選日期）。研究後確認瀏覽器並沒有開放讓網頁「只讓 Tab 跳過
+      這顆圖示、但同時保留滑鼠可以點它」的做法——這顆圖示是瀏覽器內部
+      實作的一部分，網頁端唯一能控制的就是整個顯示或整個隱藏，沒有辦法
+      只調整它是否可以被 Tab 停留，所以無法在保留圖示的前提下讓 Tab
+      跳過它，這部分回到 v1.17 的行為：年／月／日移動完最後一段，按
+      Tab 可能會先多停在圖示上一次，再按一次 Tab 才會到下一個欄位
+
+  v1.20  2026-08-28
+    - 明確新增發票表單「正常」的 Tab 順序：代碼→發票日期→發票號碼→PO#→
+      儲存發票，完成日／預計付款日都不在這條路徑上，一路按 Tab 打完
+      PO# 之後會直接跳到「儲存發票」，不會經過完成日／預計付款日
+    - 只有滑鼠自己點進完成日要手動選日期時，才會是完成日的年→月→日
+      （中間可能會多停一下前面提到的日曆圖示），選完最後一段再按 Tab
+      一樣直接跳到「儲存發票」，不會經過預計付款日（預計付款日一律是
+      跟著完成日自動算出來，不需要、也不會被排進 Tab 順序）
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -586,7 +613,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
       <div class="fgg" style="grid-template-columns:1fr 1fr;margin-bottom:4px">
         <div class="fg">
           <label>完成日（驗收日）</label>
-          <input type="date" id="f-finish" tabindex="5" onchange="calcPayDate()" oninput="calcPayDate()" onfocus="if(!this.value){this.value=new Date().toISOString().slice(0,10);calcPayDate();}">
+          <input type="date" id="f-finish" tabindex="-1" onchange="calcPayDate()" oninput="calcPayDate()" onfocus="if(!this.value){this.value=new Date().toISOString().slice(0,10);calcPayDate();}">
           <div class="calc-hint" id="calc-hint"></div>
         </div>
         <div class="fg">
@@ -597,7 +624,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
 
       <div style="display:flex;gap:6px;justify-content:flex-end;padding-top:10px;border-top:1px solid var(--bd)">
         <button class="btn warn" id="cancel-btn" onclick="cancelEdit()" style="display:none">取消更新</button>
-        <button class="btn primary" id="submit-btn" tabindex="6" onclick="submitForm()">儲存發票</button>
+        <button class="btn primary" id="submit-btn" tabindex="5" onclick="submitForm()">儲存發票</button>
       </div>
     </div>
   </div>
@@ -2166,23 +2193,23 @@ restrictInput('vp-code',    /[^A-Za-z0-9]/g);
 restrictInput('vp-paydays', /[^0-9]/g);
 
 // ══ 新增發票表單：Tab 順序客製化 ═══════════════════════
-// 快速路徑固定順序：代碼(1)→發票日期(2)→發票號碼(3)→PO(4)→完成日(5)→
-// 完成日(5)→儲存發票(6)，這 6 個欄位都已經用上面的 tabindex 屬性處理
-// 好了，交給瀏覽器原生 Tab 順序。
-// 預計付款日不需要排進 Tab 順序：它是輸入完成日後自動算出來的（見
-// calcPayDate()），平常不需要手動填，所以特別給它 tabindex="-1"，讓
-// Tab 完全跳過這個欄位（滑鼠點擊、手動修改都還是可以，只是不會被 Tab
-// 帶過去），完成日輸完直接按 Tab 就會跳到儲存發票。
+// 快速路徑固定順序：代碼(1)→發票日期(2)→發票號碼(3)→PO(4)→儲存發票(5)，
+// 這 5 個欄位已經用上面的 tabindex 屬性處理好了，交給瀏覽器原生 Tab
+// 順序，正常打完 PO 按 Tab 會直接跳到「儲存發票」，中間不會經過完成日
+// ／預計付款日。
+// 完成日／預計付款日這兩個 date 欄位都特別給 tabindex="-1"，不排進預設
+// 的 Tab 順序（滑鼠點擊、手動修改都還是可以，只是不會被 Tab 帶過去）。
+// 如果使用者「用滑鼠自己點」完成日要手動選日期，這裡則是交給瀏覽器原生
+// 處理 Tab：完成日內部年／月／日三段可以正常用 Tab 一段一段移動（這是
+// 瀏覽器原生行為，不是 bug；或者直接把數字打完會自動跳下一段，不用按
+// Tab），移動完最後一段再按 Tab，因為預計付款日的 tabindex 也是 -1、
+// 一樣不在序列裡，會直接跳到下一個真正的 tabindex（也就是「儲存發票」
+// 的 5），不會停在預計付款日。
 // 如果使用者用滑鼠點了其他不在快速路徑上的欄位（稅別、幣別、2聯財務、
 // 特殊、備註…），這裡再按 Tab 時，改成依照該欄位在畫面上的實際位置，
-// 直接跳到「快速路徑」裡下一個排在它後面的欄位（例如點 2聯財務，因為
-// 畫面位置在 PO 跟完成日中間，按 Tab 就直接跳到完成日）。
-// 注意：完成日是原生 type="date" 欄位，本身內部年／月／日三段還是要按
-// 好幾次 Tab 才能一段一段移動完（這是瀏覽器原生行為，不是 bug；或者
-// 直接把數字打完會自動跳下一段，不用按 Tab），所以這裡 date 欄位一律
-// 排除、不攔截，讓瀏覽器自己處理段落間的移動；移動完最後一段離開完成日
-// 欄位後，因為上面已經給它接續的 tabindex（5），會直接接到儲存發票(6)。
-const INVOICE_FASTPATH_IDS = ['f-code','f-date','f-invoice','po-inp','f-finish','submit-btn'];
+// 直接跳到「快速路徑」裡下一個排在它後面的欄位（例如點 2聯財務或備註，
+// 按 Tab 就直接跳到儲存發票，同樣不會經過完成日／預計付款日）。
+const INVOICE_FASTPATH_IDS = ['f-code','f-date','f-invoice','po-inp','submit-btn'];
 (function(){
   const formEl = document.getElementById('tab-add');
   if(!formEl) return;
