@@ -169,6 +169,22 @@
       （中間可能會多停一下前面提到的日曆圖示），選完最後一段再按 Tab
       一樣直接跳到「儲存發票」，不會經過預計付款日（預計付款日一律是
       跟著完成日自動算出來，不需要、也不會被排進 Tab 順序）
+
+  v1.21  2026-08-28
+    - 修正廠商資料維護「付款時間（天）」輸入 0，儲存後重新整理／重新
+      整理後，欄位的 0 不見、變成「—」或空白，新增發票選擇廠商時付款
+      天數也沒有帶入 0 的問題：根本原因是 0 這個數字在 JavaScript 裡
+      本身是 falsy，畫面上多處用「有值才顯示、沒值就顯示 —」的簡易判斷
+      式會把合法的 0 誤判成「沒有值」；資料存到 Google 試算表再讀回來
+      時，字串 "0" 又常被試算表自動轉成數字 0，更容易觸發。這次把所有
+      跟付款天數顯示／帶入相關的地方都改用正確區分「真的沒填」跟「填了
+      0」的判斷方式，不論存的是字串 "0" 還是數字 0 都能正常顯示、正常
+      帶入
+    - 新增：付款天數為 0 時，不再自動用完成日推算預計付款日（因為實際
+      預計付款日有可能早於完成日，例如已預付的情況），改成提示文字說明
+      並保留欄位讓使用者手動輸入；完成日欄位若已經有預計付款日的值，也
+      不會被覆蓋掉。付款天數不是 0（或沒有特別設定）時，跟以前一樣自動
+      計算不受影響
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -1228,6 +1244,12 @@ function calcPayDate(){
   const finish=getVal('f-finish'), currency=getVal('f-currency'), paydays=getVal('f-paydays');
   const hintEl = document.getElementById('calc-hint');
   if(!finish || !currency){ if(hintEl) hintEl.textContent=''; return; }
+  if(pdIsZero(paydays)){
+    // 付款天數為 0：預計付款日可能早於完成日（例如已預付），不自動計算、
+    // 不覆蓋預計付款日目前的值，交由使用者自行手動填寫
+    if(hintEl) hintEl.textContent = '付款天數為 0，預計付款日請手動輸入（不自動計算）';
+    return;
+  }
   let result;
   if(currency==='台幣') result = calcTWD(finish, paydays);
   else if(currency==='外幣') result = calcFX(finish, paydays);
@@ -1252,7 +1274,7 @@ function lookupVendor(resetAll){
     // 每次輸入代碼都重新帶入廠商設定
     setVal('f-tax',      v.tax||'');
     setVal('f-currency', v.currency||'');
-    setVal('f-paydays',  v.paydays||'');
+    setVal('f-paydays',  pdVal(v.paydays));
     calcPayDate();
     checkInvoiceNo();
   } else {
@@ -1264,6 +1286,15 @@ function lookupVendor(resetAll){
 // ══ HELPERS ════════════════════════════════════════
 function getVal(id){ const e=document.getElementById(id); return e?e.value.trim():''; }
 function setVal(id,v){ const e=document.getElementById(id); if(e) e.value=v; }
+// 付款天數專用的安全取值／判斷：一般欄位常用「x || fallback」或「x ? a : b」
+// 判斷有沒有值，但付款天數輸入 0 是合法且常見的情況（表示當下／立即付款），
+// 而 0 這個數字在 JavaScript 裡本身是 falsy，會被上面兩種寫法誤判成「沒有
+// 值」；尤其資料存到 Google 試算表再讀回來時，字串 "0" 常會被試算表自動轉成
+// 數字 0，更容易觸發這個問題（畫面上 0 不見、變成 —或空白）。這裡統一用
+// pdVal()／pdIsZero() 處理，只有真正的 undefined／null／空字串才算「沒有
+// 值」，不論存的是字串 "0" 還是數字 0 都視為合法值、正常顯示。
+function pdVal(x){ return (x !== undefined && x !== null && String(x).trim() !== '') ? String(x).trim() : ''; }
+function pdIsZero(x){ return pdVal(x) === '0'; }
 function esc(s){ if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function ntf(msg){ const el=document.getElementById('ntf'); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2800); }
 function showLoading(on){ const el=document.getElementById('loadingOv'); if(el) el.classList.toggle('on',on); }
@@ -1424,7 +1455,7 @@ function editRecord(id){
   if(r.vendor){ vd.textContent=r.vendor; vd.classList.remove('empty'); } else { vd.textContent='—'; vd.classList.add('empty'); }
   setVal('f-tax',      r.tax||'');
   setVal('f-currency', r.currency||'');
-  setVal('f-paydays',  r.paydays||'');
+  setVal('f-paydays',  pdVal(r.paydays));
   setVal('f-date',     r.date||'');
   setVal('f-invoice',  r.invoice||''); calcInvType(); checkInvoiceNo();
   setVal('f-sp',       r.sp||'');
@@ -1461,14 +1492,13 @@ async function saveFinish(id, val){
   if(!val) return;
   r.finish = val;
   const cur = String(r.currency || '').trim();
-  const pd  = String(r.paydays  || '').trim();
-  console.log('[saveFinish] id:', id, 'val:', val, 'currency:', cur, 'paydays:', pd);
-  if(cur){
+  const pd  = pdVal(r.paydays);
+  if(cur && pdIsZero(pd)){
+    // 付款天數為 0：不自動計算／覆蓋預計付款日，維持原本的值（使用者手動填）
+  } else if(cur){
     r.paydate = calcPayDateDirect(val, cur, pd);
-    console.log('[saveFinish] paydate:', r.paydate);
   } else {
     r.paydate = '';
-    console.warn('[saveFinish] no currency → cannot calculate paydate');
   }
   // 直接更新 DOM，不重渲整個 table（避免使用者輸入消失）
   // 用 forEach 避免 querySelector 特殊字元問題
@@ -1690,7 +1720,7 @@ function renderVendors(){
     <div class="vm-row" onclick="openVendorEdit('${v.code}')">
       <span class="vm-code">${esc(v.code)}</span>
       <span class="vm-name">${esc(v.name)||'—'}</span>
-      <span class="vm-meta">${v.tax||'—'} ／ ${v.currency||'—'} ／ ${v.paydays?v.paydays+'天':'—'}</span>
+      <span class="vm-meta">${v.tax||'—'} ／ ${v.currency||'—'} ／ ${pdVal(v.paydays)!==''?pdVal(v.paydays)+'天':'—'}</span>
       <span class="vm-spacer"></span>
       <span style="color:var(--tx3);font-size:13px">›</span>
     </div>`).join('')
@@ -1704,7 +1734,7 @@ function openVendorEdit(code){
   document.getElementById('vp-code').value      = v ? v.code : '';
   document.getElementById('vp-name').value      = v ? v.name : '';
   document.getElementById('vp-tax').value       = v ? v.tax||''      : '';
-  document.getElementById('vp-paydays').value   = v ? v.paydays||''  : '';
+  document.getElementById('vp-paydays').value   = v ? pdVal(v.paydays)  : '';
   document.getElementById('vp-currency').value  = v ? v.currency||'' : '';
   document.getElementById('vp-del-btn').style.display = code ? '' : 'none';
   const dw=document.getElementById('vpCodeDupWarn'); if(dw) dw.textContent='';
