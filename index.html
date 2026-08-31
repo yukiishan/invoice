@@ -185,6 +185,17 @@
       並保留欄位讓使用者手動輸入；完成日欄位若已經有預計付款日的值，也
       不會被覆蓋掉。付款天數不是 0（或沒有特別設定）時，跟以前一樣自動
       計算不受影響
+
+  v1.22  2026-08-28
+    - 新增發票的預計付款日欄位，手動點選時（欄位目前是空的情況下）預設
+      自動帶入當天日期，跟完成日欄位原本的行為一樣；如果欄位已經有值
+      （不論是自動算出來的，還是編輯舊資料本來就有的），點選不會覆蓋
+      掉原本的值
+
+  v1.23  2026-08-28
+    - 發票列表的 PO# 欄位改成固定寬度（最多同附圖的寬度），一張發票有
+      多筆 PO 時，超過寬度會自動換到下一行顯示，不會再把整個欄位越撐
+      越寬
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -292,6 +303,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
 .b-inv3{background:var(--gbg);color:var(--gtx)}
 .b-invE{background:#F0DED4;color:#8592A2}
 .po-list{display:flex;flex-wrap:wrap;gap:3px}
+.td-po{max-width:300px}
 .po-chip{background:var(--pbg);color:var(--ptx);border-radius:20px;padding:1px 6px;font-size:10px;font-weight:600;white-space:nowrap}
 .finish-inp{font-size:11px;padding:2px 5px;border:1px solid var(--bd);border-radius:5px;background:var(--sf2);color:var(--tx);font-family:inherit;width:112px}
 .finish-inp:focus{outline:none;border-color:var(--blue)}
@@ -634,7 +646,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
         </div>
         <div class="fg">
           <label>預計付款日</label>
-          <input type="date" id="f-paydate" tabindex="-1">
+          <input type="date" id="f-paydate" tabindex="-1" onfocus="if(!this.value){this.value=new Date().toISOString().slice(0,10);}">
         </div>
       </div>
 
@@ -1566,8 +1578,9 @@ function renderTable(){
       // 發票號碼
       const tdI = document.createElement('td');
       tdI.className='mono'; tdI.textContent=r.invoice||'—'; tr.appendChild(tdI);
-      // PO#
+      // PO#（固定欄寬，一張發票有多筆 PO 時超過寬度就自動換到第二行）
       const tdP = document.createElement('td');
+      tdP.className='td-po';
       if(r.po&&r.po.length){ const dl=document.createElement('div'); dl.className='po-list'; r.po.forEach(p=>{ const sp=document.createElement('span'); sp.className='po-chip'; sp.textContent=p; dl.appendChild(sp); }); tdP.appendChild(dl); } else tdP.textContent='—';
       tr.appendChild(tdP);
       // 發票形式（優先依日期＋發票號碼即時判斷，避免舊資料沒有存 invtype 就整欄空白；
