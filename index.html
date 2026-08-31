@@ -196,6 +196,16 @@
     - 發票列表的 PO# 欄位改成固定寬度（最多同附圖的寬度），一張發票有
       多筆 PO 時，超過寬度會自動換到下一行顯示，不會再把整個欄位越撐
       越寬
+
+  v1.24  2026-08-28
+    - 修正發票號碼欄位「須為英數字共 10 碼」的即時字數檢查，在打完整組
+      文字後有時會卡在少算一碼（例如明明已經打滿 10 碼，警示卻還顯示
+      9 碼）的問題：根本原因是中文輸入法（注音／拼音等）開著的時候，
+      就算實際打的是純英數字，瀏覽器有時只會在整段組字結束時才觸發
+      compositionend，不會像平常一樣每個字元都觸發 input 事件，導致
+      欄位其實已經打完整組文字，但字數檢查沒有跟著重新執行，卡在組字
+      打到一半時的舊字數；這裡在 compositionend 補一次重新檢查，跟
+      發票號碼另一個「只允許英數字」的過濾邏輯用同一套雙重保險做法
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -2231,6 +2241,21 @@ function restrictInput(id, disallowedPattern){
 restrictInput('f-code',    /[^A-Za-z0-9]/g);
 restrictInput('f-invoice', /[^\x21-\x7E]/g);
 restrictInput('po-inp',    /[^A-Za-z0-9\-*]/g);
+// 發票號碼欄位的字數檢查（checkInvoiceNo）跟自動判斷發票形式（calcInvType）
+// 原本只掛在 oninput，但中文輸入法（注音／拼音等）開著的時候，就算打的是
+// 英數字，瀏覽器有時只會在組字結束時觸發 compositionend、不會每個字元都
+// 觸發 input，導致欄位其實已經打完整組字（例如已經是完整 10 碼），但字數
+// 檢查沒有跟著重新執行，畫面卡在打到一半時的舊字數（例如卡在 9 碼），跟
+// 上面 restrictInput() 同樣的雙重保險，這裡也在 compositionend 補一次。
+(function(){
+  const el = document.getElementById('f-invoice');
+  if(!el) return;
+  el.addEventListener('compositionend', function(){
+    this.value = this.value.toUpperCase();
+    calcInvType();
+    checkInvoiceNo();
+  });
+})();
 // 廠商資料維護：代碼／付款時間（天數，額外保險，type=number 原生也會擋掉大部分中文輸入）
 restrictInput('vp-code',    /[^A-Za-z0-9]/g);
 restrictInput('vp-paydays', /[^0-9]/g);
