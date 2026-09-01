@@ -206,6 +206,11 @@
       欄位其實已經打完整組文字，但字數檢查沒有跟著重新執行，卡在組字
       打到一半時的舊字數；這裡在 compositionend 補一次重新檢查，跟
       發票號碼另一個「只允許英數字」的過濾邏輯用同一套雙重保險做法
+
+  v1.25  2026-08-28
+    - 全站有捲軸的地方（表格、彈出面板等）統一改成搭配底色的莫蘭迪灰藍
+      色系，取代瀏覽器預設的灰色捲軸：軌道貼近底色、滑塊顏色看得見但
+      不會太深，滑鼠移到滑塊上時再稍微加深方便辨識
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -232,6 +237,15 @@
 }
 html{height:100%}
 body{font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;background:var(--bg);color:var(--tx);font-size:13px;height:100vh;overflow:hidden}
+
+/* ── 全站捲軸：搭配底色的莫蘭迪灰藍色系（軌道貼近底色、滑塊看得見但不會太深，
+   滑鼠移過去時再稍微加深方便辨識）── */
+*{scrollbar-width:thin;scrollbar-color:var(--bd2) var(--sf2)}
+*::-webkit-scrollbar{width:10px;height:10px}
+*::-webkit-scrollbar-track{background:var(--sf2)}
+*::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:20px;border:2px solid var(--sf2);background-clip:padding-box}
+*::-webkit-scrollbar-thumb:hover{background:var(--tx3)}
+*::-webkit-scrollbar-corner{background:var(--sf2)}
 
 /* ── Login ── */
 .ls{position:fixed;inset:0;background:#BFC2CB;z-index:1000;display:flex;align-items:center;justify-content:center}
