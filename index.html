@@ -211,6 +211,12 @@
     - 全站有捲軸的地方（表格、彈出面板等）統一改成搭配底色的莫蘭迪灰藍
       色系，取代瀏覽器預設的灰色捲軸：軌道貼近底色、滑塊顏色看得見但
       不會太深，滑鼠移到滑塊上時再稍微加深方便辨識
+
+  v1.26  2026-08-28
+    - 發票字軌管理視窗的 Tab 順序：起始年月→月→結束年月→月→字軌→新增
+      （不變），按完新增直接跳到下方的「儲存」，不會先一個一個停在字軌
+      清單每一列的「刪除」鈕、也不會停在「取消」鈕上；這些按鈕滑鼠點擊
+      功能不受影響，只是不排進 Tab 順序而已
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -870,27 +876,29 @@ tbody td{padding:5px 7px;vertical-align:middle}
     <div style="display:grid;grid-template-columns:90px 90px 70px 1fr;gap:6px;margin-bottom:10px;align-items:flex-end">
       <div class="fg">
         <label>起始年月</label>
-        <input type="month" id="trk-from" style="font-size:11px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:inherit;width:100%">
+        <input type="month" id="trk-from" tabindex="1" style="font-size:11px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:inherit;width:100%">
       </div>
       <div class="fg">
         <label>結束年月</label>
-        <input type="month" id="trk-to" style="font-size:11px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:inherit;width:100%">
+        <input type="month" id="trk-to" tabindex="2" style="font-size:11px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:inherit;width:100%">
       </div>
       <div class="fg">
         <label>字軌（2碼）</label>
-        <input type="text" id="trk-code" maxlength="2" placeholder="AA"
+        <input type="text" id="trk-code" tabindex="3" maxlength="2" placeholder="AA"
           style="font-size:12px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:'Courier New',monospace;width:100%;text-transform:uppercase"
           oninput="this.value=this.value.toUpperCase()">
       </div>
-      <button class="btn primary sm" onclick="addTrack()" style="align-self:flex-end">新增</button>
+      <button class="btn primary sm" id="trk-add-btn" tabindex="4" onclick="addTrack()" style="align-self:flex-end">新增</button>
     </div>
     <div style="font-size:10px;font-weight:700;color:var(--tx3);margin-bottom:5px;text-transform:uppercase">
       字軌清單（<span id="trk-count">0</span> 筆）
     </div>
+    <!-- 清單裡的每一列「刪除」按鈕不排進 Tab 順序（tabindex="-1"，見 renderTrackList()），
+         這樣「新增」按完 Tab 才會直接跳到下面的「儲存」，不會先一個一個停在刪除鈕上 -->
     <div id="trk-list" style="display:flex;flex-direction:column;gap:2px;max-height:280px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--r);padding:5px;margin-bottom:10px"></div>
     <div class="mkft">
-      <button class="btn" onclick="closeTrackModal()">取消</button>
-      <button class="btn primary" onclick="saveTracksCloud();closeTrackModal()">✓ 儲存</button>
+      <button class="btn" id="trk-cancel-btn" tabindex="-1" onclick="closeTrackModal()">取消</button>
+      <button class="btn primary" id="trk-save-btn" tabindex="5" onclick="saveTracksCloud();closeTrackModal()">✓ 儲存</button>
     </div>
   </div>
 </div>
@@ -2134,7 +2142,7 @@ function renderTrackList(){
     <div style="display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:5px" onmouseover="this.style.background='var(--sf2)'" onmouseout="this.style.background=''">
       <span style="font-family:'Courier New',monospace;font-size:11px;font-weight:700;color:var(--blue);width:52px">${esc(t.code)}</span>
       <span style="font-size:11px;color:var(--tx2);flex:1">${fmtTrackRange(esc(t.from), esc(t.to))}</span>
-      <button onclick="delTrack(${i})" style="font-size:10px;cursor:pointer;color:var(--tx3);padding:2px 6px;border:1px solid var(--bd);background:none;border-radius:4px;font-family:inherit" onmouseover="this.style.background='var(--rbg)';this.style.color='var(--rtx)'" onmouseout="this.style.background='';this.style.color='var(--tx3)'">刪除</button>
+      <button onclick="delTrack(${i})" tabindex="-1" style="font-size:10px;cursor:pointer;color:var(--tx3);padding:2px 6px;border:1px solid var(--bd);background:none;border-radius:4px;font-family:inherit" onmouseover="this.style.background='var(--rbg)';this.style.color='var(--rtx)'" onmouseout="this.style.background='';this.style.color='var(--tx3)'">刪除</button>
     </div>`).join('')
     : '<div style="text-align:center;padding:16px;color:var(--tx3);font-size:12px">尚無字軌資料</div>';
 }
