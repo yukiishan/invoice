@@ -217,6 +217,17 @@
       （不變），按完新增直接跳到下方的「儲存」，不會先一個一個停在字軌
       清單每一列的「刪除」鈕、也不會停在「取消」鈕上；這些按鈕滑鼠點擊
       功能不受影響，只是不排進 Tab 順序而已
+
+  v1.27  2026-09-03
+    - 修正代碼／發票號碼／字軌代碼欄位，在欄位中間或前面插入英文字母時
+      游標會自動跳到最後面的問題：這幾個欄位會把輸入即時轉成大寫，原本
+      的寫法是直接整個重新賦值（el.value = el.value.toUpperCase()），
+      只要真的把小寫字母轉成大寫、內容有變化，瀏覽器就會把游標重設到
+      最後面，導致在欄位中間或前面接著打字時，游標一直被彈到最後、沒辦
+      法連續在同一個位置輸入（純數字因為轉大寫前後內容不變，不會觸發
+      這個問題，所以只有打到英文字母時才會發生）；這裡統一改成重新賦值
+      前後記住並還原游標位置，跟 PO# 欄位、廠商資料維護代碼欄位原本就有
+      的做法一致
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -588,7 +599,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
         <div class="fg">
           <label>代碼 Code <span style="color:var(--red)">*</span></label>
           <input type="text" id="f-code" placeholder="DE06" maxlength="6" tabindex="1"
-            oninput="this.value=this.value.toUpperCase();lookupVendor(true)"
+            oninput="upperKeepCursor(this);lookupVendor(true)"
             style="font-family:'Courier New',monospace;font-weight:700;font-size:13px;letter-spacing:.08em">
         </div>
         <div class="fg">
@@ -610,7 +621,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
         <div class="fg">
           <label>發票號碼 Invoice#</label>
           <input type="text" id="f-invoice" placeholder="YY05184726" tabindex="3"
-            oninput="this.value=this.value.toUpperCase();calcInvType();checkInvoiceNo()"
+            oninput="upperKeepCursor(this);calcInvType();checkInvoiceNo()"
             style="font-family:'Courier New',monospace">
           <div id="invoiceNoWarn" style="color:var(--rtx);font-size:10px;margin-top:2px;min-height:12px;font-weight:600"></div>
         </div>
@@ -886,7 +897,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
         <label>字軌（2碼）</label>
         <input type="text" id="trk-code" tabindex="3" maxlength="2" placeholder="AA"
           style="font-size:12px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:'Courier New',monospace;width:100%;text-transform:uppercase"
-          oninput="this.value=this.value.toUpperCase()">
+          oninput="upperKeepCursor(this)">
       </div>
       <button class="btn primary sm" id="trk-add-btn" tabindex="4" onclick="addTrack()" style="align-self:flex-end">新增</button>
     </div>
@@ -1330,6 +1341,19 @@ function lookupVendor(resetAll){
 // ══ HELPERS ════════════════════════════════════════
 function getVal(id){ const e=document.getElementById(id); return e?e.value.trim():''; }
 function setVal(id,v){ const e=document.getElementById(id); if(e) e.value=v; }
+// 即時轉大寫，但保留游標（選取範圍）位置：直接 el.value = el.value.toUpperCase()
+// 只要內容真的有變化（打了小寫字母），瀏覽器就會把游標重設到最後面，導致在
+// 欄位中間或前面插入字元時，游標會自動跳到最後，變得沒辦法連續在同一個位置
+// 繼續輸入。這裡統一用這個函式，重新賦值前後記住並還原選取範圍。
+function upperKeepCursor(el){
+  const s = el.selectionStart, e = el.selectionEnd;
+  const before = el.value;
+  const upper = before.toUpperCase();
+  if(upper !== before){
+    el.value = upper;
+    try{ el.setSelectionRange(s, e); }catch(err){}
+  }
+}
 // 付款天數專用的安全取值／判斷：一般欄位常用「x || fallback」或「x ? a : b」
 // 判斷有沒有值，但付款天數輸入 0 是合法且常見的情況（表示當下／立即付款），
 // 而 0 這個數字在 JavaScript 裡本身是 falsy，會被上面兩種寫法誤判成「沒有
@@ -2273,7 +2297,7 @@ restrictInput('po-inp',    /[^A-Za-z0-9\-*]/g);
   const el = document.getElementById('f-invoice');
   if(!el) return;
   el.addEventListener('compositionend', function(){
-    this.value = this.value.toUpperCase();
+    upperKeepCursor(this);
     calcInvType();
     checkInvoiceNo();
   });
