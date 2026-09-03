@@ -247,6 +247,16 @@
       ⚠ 這是後端修正，需要把新的 Code.gs 內容更新到你的 Google Apps
       Script 專案（貼上程式碼後重新部署）才會生效，單純換掉 index.html
       無法修正此問題。
+
+  v1.29  2026-09-03
+    - 下載發票資料的欄位順序改為：代碼／廠商／發票日期／發票號碼／PO#／
+      完成日／預計付款日／稅別／幣別／付款天數／2聯財務／特殊／備註
+    - 資料改為下載 .xlsx（Excel 檔）而不是 .csv：因為 .csv 是純文字格
+      式，本身沒有儲存格格式（置中／字型／顏色）的概念，開啟時的置左置
+      右是 Excel 依內容型態自動套用、無法從檔案內容強制指定；改成組出
+      真正的 .xlsx 後，所有儲存格已預設「水平置中＋垂直置中」，打開就
+      是置中，不需要再手動調整。按鈕文字同步改為「⬇ Excel」，下載檔名
+      副檔名改為 .xlsx
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -477,6 +487,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
 .cal-ev-detail{font-size:11px;color:var(--tx2);line-height:1.6}
 .cal-no-ev{text-align:center;padding:24px;color:var(--tx3);font-size:13px}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -545,7 +556,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
     <span id="hdr-count" style="font-size:11px;color:var(--tx3);margin-right:2px"></span>
     <button class="btn sm warn" onclick="openHolModal()">📅 國定假日</button>
     <button class="btn sm warn" onclick="openTrackModal()">📑 發票字軌</button>
-    <button class="btn sm" onclick="exportCSV()">⬇ CSV</button>
+    <button class="btn sm" onclick="exportXLSX()">⬇ Excel</button>
     <button class="btn sm" onclick="openBackup()">☁️ 雲端備份</button>
     <button class="btn sm" onclick="manualBackupLocal()">💾 備份</button>
     <label class="btn sm" style="cursor:pointer" title="還原本機備份">↑ 還原<input type="file" accept=".json" style="display:none" onchange="restoreLocalBackup(event)"></label>
@@ -2265,14 +2276,95 @@ function calcInvType(){
   }
 }
 
-// ══ EXPORT CSV ═════════════════════════════════════
-function exportCSV(){
-  const hd = ['廠商','代碼','發票日期','稅別','幣別','付款天數','發票號碼','PO#','2聯財務','特殊','備註','完成日','預計付款日'];
-  const rows = invoices.map(r => [r.vendor,r.code,r.date,r.tax,r.currency,r.paydays,r.invoice,(r.po||[]).join('|'),r.finance,r.sp,r.remark,r.finish,r.paydate]
-    .map(v => `"${(v||'').toString().replace(/"/g,'""')}"`).join(','));
-  const csv = '\uFEFF' + [hd.join(','), ...rows].join('\r\n');
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
-  a.download = 'invoices_' + new Date().toISOString().slice(0,10) + '.csv'; a.click();
+// ══ EXPORT EXCEL（.xlsx，儲存格預設置中）═══════════════
+// 改用直接組出真正的 .xlsx（Office Open XML）檔案，而不是純文字 CSV，
+// 原因是 CSV 是純文字格式，完全沒有儲存格格式（置中／字型／顏色等）的
+// 概念，開啟時是 Excel 依內容型態（文字置左、數字置右）自動套用的顯示
+// 規則，無法從檔案內容去強制指定「置中」。.xlsx 本質上是一個 zip 壓縮檔，
+// 內含數個 XML 檔案，這裡用 JSZip 組出最小可用的結構，並在 styles.xml
+// 裡把預設儲存格樣式（index 0，也就是所有沒有另外指定樣式的儲存格都會
+// 套用的樣式）設成水平／垂直置中，這樣所有資料儲存格就會「打開就置中」。
+function _xmlEsc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+}
+async function exportXLSX(){
+  if(typeof JSZip === 'undefined'){
+    alert('匯出元件尚未載入完成，請稍後再試一次（需要網路連線載入一次）');
+    return;
+  }
+  const COLS = ['A','B','C','D','E','F','G','H','I','J','K','L','M'];
+  const hd = ['代碼','廠商','發票日期','發票號碼','PO#','完成日','預計付款日','稅別','幣別','付款天數','2聯財務','特殊','備註'];
+  const dataRows = invoices.map(r => [r.code,r.vendor,r.date,r.invoice,(r.po||[]).join('|'),r.finish,r.paydate,r.tax,r.currency,r.paydays,r.finance,r.sp,r.remark]);
+  const allRows = [hd, ...dataRows];
+
+  const sheetRowsXml = allRows.map((row, ri) => {
+    const r = ri + 1;
+    const cellsXml = row.map((v, ci) => {
+      const ref = COLS[ci] + r;
+      const text = v == null ? '' : String(v);
+      return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${_xmlEsc(text)}</t></is></c>`;
+    }).join('');
+    return `<row r="${r}">${cellsXml}</row>`;
+  }).join('');
+
+  const lastRow = allRows.length;
+  const contentTypesXml =
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+<Default Extension="xml" ContentType="application/xml"/>
+<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`;
+  const rootRelsXml =
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`;
+  const workbookXml =
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+<sheets><sheet name="發票資料" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`;
+  const workbookRelsXml =
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+  const stylesXml =
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>
+<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>
+<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>
+<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf></cellXfs>
+<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>`;
+  const sheetXml =
+`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+<dimension ref="A1:${COLS[hd.length-1]}${lastRow}"/>
+<sheetViews><sheetView workbookViewId="0"/></sheetViews>
+<sheetFormatPr defaultRowHeight="16"/>
+<cols><col min="1" max="${hd.length}" width="14" customWidth="1"/></cols>
+<sheetData>${sheetRowsXml}</sheetData>
+</worksheet>`;
+
+  const zip = new JSZip();
+  zip.file('[Content_Types].xml', contentTypesXml);
+  zip.file('_rels/.rels', rootRelsXml);
+  zip.file('xl/workbook.xml', workbookXml);
+  zip.file('xl/_rels/workbook.xml.rels', workbookRelsXml);
+  zip.file('xl/styles.xml', stylesXml);
+  zip.file('xl/worksheets/sheet1.xml', sheetXml);
+  const blob = await zip.generateAsync({type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'invoices_' + new Date().toISOString().slice(0,10) + '.xlsx'; a.click();
 }
 
 // ══ 限制英數符號欄位（自動過濾中文／注音）═══════════════
