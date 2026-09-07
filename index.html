@@ -262,6 +262,16 @@
     - 付款管理／歷史資料的「廠商」欄位寬度加大，單行至少可容納 6 個中
       文字不換行（原本欄寬較窄，較長的廠商名稱會被擠成兩行）；此欄位由
       兩個分頁共用同一個列版型，所以同時套用
+
+  v1.31  2026-09-07
+    - 新增發票的「發票日期」預設值新增規則：原本一律帶入前一天，現在改
+      成如果今天是放假（週末／國定假日）結束後的第一個上班日，前一天當
+      下還在放假中、直接帶前一天沒有意義，因此改成帶入「這段假期開始日
+      前兩天」。例如今天週一（前一天週日、再前一天週六都是假日），假期
+      開始日＝週六，預設改帶入週六前兩天＝週四；又例如遇到週五＋隔週一
+      都是國定假日、中間再加上週六日的連續假期，回來上班第一天（週二）
+      預設改帶入假期開始日（週五）前兩天。一般平日（前一天本來就是上班
+      日）則維持原本邏輯，直接帶入前一天，不受影響
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -1311,6 +1321,25 @@ function isHol(d){ return d.getDay()===0 || d.getDay()===6 || holSet.has(fmt(d))
 function nextBiz(d){ const r=new Date(d); while(isHol(r)) r.setDate(r.getDate()+1); return r; }
 function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
 
+// 新增發票的「發票日期」預設值：
+// 一般情況維持原規則（帶入前一天）；但如果今天是放假（週末／國定假日）結束
+// 後的第一個上班日，改成帶入「這段假期開始日的前兩天」，而不是單純的前一天
+// （前一天當下還是放假中，直接帶前一天沒有意義）。
+// 例：今天週一，前一天週日、再前一天週六都是假日 → 假期開始日＝週六
+//     → 預設帶入「週六前兩天」＝週四。
+// 例：今天因連續假期（含週末＋國定假日）剛結束的上班日，假期開始日往前推
+//     兩天，即為預設帶入的日期。
+function defaultInvoiceDate(){
+  const today = new Date(); today.setHours(0,0,0,0);
+  const yesterday = addDays(today, -1);
+  if(!isHol(yesterday)) return fmt(yesterday); // 前一天就是上班日，維持原本邏輯
+  // 前一天在假期中：往前找出這段連續假期最前面一天（也就是假期開始日）
+  let cursor = new Date(yesterday);
+  while(isHol(cursor)) cursor.setDate(cursor.getDate()-1);
+  const holStart = addDays(cursor, 1);
+  return fmt(addDays(holStart, -2));
+}
+
 // ══ PAY DATE CALC ══════════════════════════════════
 function calcTWD(finish, paydays){
   const fd = parseD(finish), pd = parseInt(paydays)||0;
@@ -1539,8 +1568,9 @@ function clearForm(){
   if(clearBtn) clearBtn.style.display='';
   if(formDelBtn) formDelBtn.style.display='none';
   if(continuousBtn) continuousBtn.style.display='';
-  // 新增模式：預設帶入今天作為發票日期
-  if(!editId){ const yd=new Date(); yd.setDate(yd.getDate()-1); setVal('f-date', yd.toISOString().slice(0,10)); }
+  // 新增模式：預設帶入發票日期（一般為前一天；假期剛結束的第一個上班日則
+  // 改為假期開始日前兩天，見 defaultInvoiceDate()）
+  if(!editId){ setVal('f-date', defaultInvoiceDate()); }
 }
 
 function editRecord(id){
@@ -1805,11 +1835,10 @@ function sw(name, btn){
   }
   if(name === 'add'){
     if(!editId){
-      // 新增模式：帶入昨天日期
+      // 新增模式：帶入預設發票日期（見 defaultInvoiceDate()）
       const fd=document.getElementById('f-date');
       if(!fd || !fd.value){
-        const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
-        setVal('f-date', yesterday.toISOString().slice(0,10));
+        setVal('f-date', defaultInvoiceDate());
       }
       setTimeout(()=>{ const fc=document.getElementById('f-code'); if(fc) fc.focus(); }, 80);
     }
