@@ -257,6 +257,11 @@
       真正的 .xlsx 後，所有儲存格已預設「水平置中＋垂直置中」，打開就
       是置中，不需要再手動調整。按鈕文字同步改為「⬇ Excel」，下載檔名
       副檔名改為 .xlsx
+
+  v1.30  2026-09-07
+    - 付款管理／歷史資料的「廠商」欄位寬度加大，單行至少可容納 6 個中
+      文字不換行（原本欄寬較窄，較長的廠商名稱會被擠成兩行）；此欄位由
+      兩個分頁共用同一個列版型，所以同時套用
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -359,6 +364,7 @@ tbody tr{border-bottom:1px solid var(--bd)}
 tbody tr:last-child{border-bottom:none}
 tbody tr:hover{background:#edf2f8}
 tbody td{padding:5px 7px;vertical-align:middle}
+.td-vendor{min-width:100px;white-space:nowrap}
 .ac{display:flex;gap:3px}
 .mono{font-family:'Courier New',Courier,monospace;font-size:11px;letter-spacing:.03em}
 .badge{display:inline-block;padding:2px 6px;border-radius:20px;font-size:10px;font-weight:600;white-space:nowrap}
@@ -814,7 +820,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
       <table>
         <thead>
           <tr>
-            <th>代碼</th><th>廠商</th><th>發票日期</th><th>發票號碼</th><th>PO#</th>
+            <th>代碼</th><th class="td-vendor">廠商</th><th>發票日期</th><th>發票號碼</th><th>PO#</th>
             <th>發票形式</th><th>幣別</th><th>稅別</th>
             <th>完成日（驗收日）</th><th>預計付款日</th><th>備註</th><th>付款狀態</th>
           </tr>
@@ -866,7 +872,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
       <table>
         <thead>
           <tr>
-            <th>代碼</th><th>廠商</th><th>發票日期</th><th>發票號碼</th><th>PO#</th>
+            <th>代碼</th><th class="td-vendor">廠商</th><th>發票日期</th><th>發票號碼</th><th>PO#</th>
             <th>發票形式</th><th>幣別</th><th>稅別</th>
             <th>完成日（驗收日）</th><th>預計付款日</th><th>備註</th><th>付款狀態</th>
           </tr>
@@ -1928,7 +1934,7 @@ function payLikeRowHtml(r, clickable){
   const trOpen = clickable ? `<tr onclick="editRecord('${r.id}')" style="cursor:pointer">` : `<tr>`;
   return `${trOpen}
       <td style="font-family:'Courier New',monospace;font-weight:700">${esc(r.code)||'—'}</td>
-      <td style="font-weight:600">${esc(r.vendor)||'—'}</td>
+      <td class="td-vendor" style="font-weight:600">${esc(r.vendor)||'—'}</td>
       <td style="white-space:nowrap">${fD(r.date)}</td>
       <td style="font-family:'Courier New',monospace">${esc(r.invoice)||'—'}</td>
       <td>${poHtml}</td>
