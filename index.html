@@ -280,6 +280,13 @@
       前一天」（發票日期是前兩天，完成日則是前一天，兩者天數不同）。
       例如今天週一（前一天週日、再前一天週六都是假日），假期開始日＝
       週六，預設改帶入週六前一天＝週五（9/7 一 → 9/4）
+
+  v1.33  2026-09-07
+    - 修正 v1.32 漏改的地方：發票列表頁面裡，尚未填完成日的那幾筆發票，
+      直接點選列表上的完成日欄位（不是新增發票表單）時，原本還是用舊的
+      「一律帶入前一天」邏輯，沒有套用到假期規則。這裡跟新增發票表單的
+      完成日欄位共用同一個 defaultFinishDate() 判斷式，現在兩處預設值
+      規則已經一致
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -1749,11 +1756,11 @@ function renderTable(){
       } else {
         const inp=document.createElement('input');
         inp.type='date'; inp.className='finish-inp'; inp.title='輸入驗收日';
-        // focus：帶入「昨天」的日期但不立刻儲存，讓使用者可以直接確認或改日期
+        // focus：帶入預設日期（見 defaultFinishDate()，規則同新增發票的完成日）
+        // 但不立刻儲存，讓使用者可以直接確認或改日期
         inp.addEventListener('focus', function(){
           if(!this.value){
-            const d = new Date(); d.setDate(d.getDate() - 1);
-            this.value = d.toISOString().slice(0,10);
+            this.value = defaultFinishDate();
             // 不在這裡呼叫 saveFinish，等 change 或 blur
           }
         });
