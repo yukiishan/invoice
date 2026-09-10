@@ -287,6 +287,28 @@
       「一律帶入前一天」邏輯，沒有套用到假期規則。這裡跟新增發票表單的
       完成日欄位共用同一個 defaultFinishDate() 判斷式，現在兩處預設值
       規則已經一致
+
+  v1.34  2026-09-10
+    - ⚠ 後端修正（Code.gs 同步更新為版本 1.3，需要貼進 Google Apps Script
+      並重新部署才會生效）：v1.2 部署後仍有極少數「還在倒數登入時間內卻
+      被踢出」的個案發生，代表除了 v1.2 修過的競爭條件之外還有其他原因，
+      但目前資訊不足以確定真正原因。這次先幫後端的 verifyToken() 加上
+      診斷資訊：判定 Token 無效時，區分是「完全找不到這個 token」還是
+      「找到但已經過期」，並記錄當下庫裡還有幾個 token、經過的時間等，
+      同時寫進 Apps Script 的執行記錄（Executions 頁面）、也透過 API 回
+      傳給前端印在瀏覽器 console（[Auth] 收到 INVALID_TOKEN...）。下次
+      再發生同樣狀況時，麻煩把瀏覽器 console 那行 log 截圖或內容貼給
+      我，就能直接依實際數據判斷根本原因、對症下藥，而不是繼續用猜的。
+      這一版本身不改變任何判斷邏輯，純粹是加診斷
+
+  v1.35  2026-09-10
+    - 廠商資料維護／新增發票的「付款時間（天）」欄位，「不自動計算，改
+      手動輸入預計付款日」的特殊輸入值從「0」改成「-」；輸入「0」現在
+      是正常數字，代表「以基準當天計算」（台幣：基準日 + 0 天；外幣：
+      驗收日 + 0 天，一樣會照原本規則捲到最近的付款日、假日順延）。
+    - 因為欄位現在需要能輸入「-」這個非數字字元，欄位型別從 type=number
+      改成 type=text，並加上限制只能輸入數字或「-」（跟代碼欄位一樣的
+      即時過濾機制，含中文注音輸入法的防護）
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -669,7 +691,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
         </div>
         <div class="fg">
           <label>付款時間（天）</label>
-          <input type="number" id="f-paydays" min="0" placeholder="30" tabindex="-1" oninput="calcPayDate()">
+          <input type="text" id="f-paydays" placeholder="30" title="輸入「-」代表不自動計算，改為手動輸入預計付款日；輸入 0 則以基準當天計算" tabindex="-1" oninput="calcPayDate()">
         </div>
       </div>
 
@@ -807,7 +829,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
         </div>
         <div class="fg">
           <label>付款時間（天）</label>
-          <input type="number" id="vp-paydays" min="0" placeholder="30" tabindex="4">
+          <input type="text" id="vp-paydays" placeholder="30" title="輸入「-」代表不自動計算，改為手動輸入預計付款日；輸入 0 則以基準當天計算" tabindex="4">
         </div>
         <div class="fg">
           <label>幣別</label>
@@ -1126,11 +1148,18 @@ function _onVis(){
 })();
 
 // ══ API ═══════════════════════════════════════════
+// 收到伺服器判定 Token 無效時，把後端一併回傳的診斷資訊（debug）印到
+// console，方便下次再發生「明明還在倒數時間內卻被踢出」時，直接從瀏覽器
+// 主控台看到具體原因（token 完全找不到／已判定過期、當下庫裡還有幾個
+// token、伺服器端算出的經過時間等），不用再用猜的。
+function _logInvalidTokenDebug(action, json){
+  console.warn('[Auth] 收到 INVALID_TOKEN（action=' + action + '）伺服器診斷資訊：', json.debug || '(無 debug 資訊，可能是還沒更新到新版 Code.gs)');
+}
 async function apiGet(action){
   const tok = _TOKEN;
   const res = await fetch(`${API_URL}?action=${encodeURIComponent(action)}&token=${encodeURIComponent(tok)}`);
   const json = await res.json();
-  if(json.code === 'INVALID_TOKEN'){ if(tok===_TOKEN) _handleExpiry(); throw new Error('請重新登入'); }
+  if(json.code === 'INVALID_TOKEN'){ _logInvalidTokenDebug(action, json); if(tok===_TOKEN) _handleExpiry(); throw new Error('請重新登入'); }
   if(!json.ok) throw new Error(json.error || 'API error');
   return json.data;
 }
@@ -1138,7 +1167,7 @@ async function apiPost(action, payload){
   const tok = _TOKEN;
   const res = await fetch(API_URL, { method:'POST', body: JSON.stringify({ action, payload, token: tok }) });
   const json = await res.json();
-  if(json.code === 'INVALID_TOKEN'){ if(tok===_TOKEN) _handleExpiry(); throw new Error('請重新登入'); }
+  if(json.code === 'INVALID_TOKEN'){ _logInvalidTokenDebug(action, json); if(tok===_TOKEN) _handleExpiry(); throw new Error('請重新登入'); }
   if(!json.ok) throw new Error(json.error || 'API error');
   return json.data;
 }
@@ -1393,10 +1422,10 @@ function calcPayDate(){
   const finish=getVal('f-finish'), currency=getVal('f-currency'), paydays=getVal('f-paydays');
   const hintEl = document.getElementById('calc-hint');
   if(!finish || !currency){ if(hintEl) hintEl.textContent=''; return; }
-  if(pdIsZero(paydays)){
-    // 付款天數為 0：預計付款日可能早於完成日（例如已預付），不自動計算、
+  if(pdIsManual(paydays)){
+    // 付款天數為「-」：預計付款日可能早於完成日（例如已預付），不自動計算、
     // 不覆蓋預計付款日目前的值，交由使用者自行手動填寫
-    if(hintEl) hintEl.textContent = '付款天數為 0，預計付款日請手動輸入（不自動計算）';
+    if(hintEl) hintEl.textContent = '付款天數為「-」，預計付款日請手動輸入（不自動計算）';
     return;
   }
   let result;
@@ -1453,10 +1482,13 @@ function upperKeepCursor(el){
 // 而 0 這個數字在 JavaScript 裡本身是 falsy，會被上面兩種寫法誤判成「沒有
 // 值」；尤其資料存到 Google 試算表再讀回來時，字串 "0" 常會被試算表自動轉成
 // 數字 0，更容易觸發這個問題（畫面上 0 不見、變成 —或空白）。這裡統一用
-// pdVal()／pdIsZero() 處理，只有真正的 undefined／null／空字串才算「沒有
+// pdVal()／pdIsManual() 處理，只有真正的 undefined／null／空字串才算「沒有
 // 值」，不論存的是字串 "0" 還是數字 0 都視為合法值、正常顯示。
+// pdIsManual()：付款時間輸入「-」時代表「不自動計算，預計付款日由使用者
+// 手動輸入」；輸入「0」則是正常數字，代表「以基準當天計算」（沿用計算式
+// 本來就有的 pd=0 邏輯，不需要特別處理）。
 function pdVal(x){ return (x !== undefined && x !== null && String(x).trim() !== '') ? String(x).trim() : ''; }
-function pdIsZero(x){ return pdVal(x) === '0'; }
+function pdIsManual(x){ return pdVal(x) === '-'; }
 function esc(s){ if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function ntf(msg){ const el=document.getElementById('ntf'); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),2800); }
 function showLoading(on){ const el=document.getElementById('loadingOv'); if(el) el.classList.toggle('on',on); }
@@ -1656,8 +1688,8 @@ async function saveFinish(id, val){
   r.finish = val;
   const cur = String(r.currency || '').trim();
   const pd  = pdVal(r.paydays);
-  if(cur && pdIsZero(pd)){
-    // 付款天數為 0：不自動計算／覆蓋預計付款日，維持原本的值（使用者手動填）
+  if(cur && pdIsManual(pd)){
+    // 付款天數為「-」：不自動計算／覆蓋預計付款日，維持原本的值（使用者手動填）
   } else if(cur){
     r.paydate = calcPayDateDirect(val, cur, pd);
   } else {
@@ -2477,9 +2509,12 @@ restrictInput('po-inp',    /[^A-Za-z0-9\-*]/g);
     checkInvoiceNo();
   });
 })();
-// 廠商資料維護：代碼／付款時間（天數，額外保險，type=number 原生也會擋掉大部分中文輸入）
+// 廠商資料維護：代碼／付款時間（天數）。付款時間欄位改成 type=text（因為
+// 需要能輸入單獨一個「-」字元代表「不自動計算」，type=number 無法保留
+// 這種非數字內容），所以額外用 restrictInput 限制只能輸入數字或「-」。
 restrictInput('vp-code',    /[^A-Za-z0-9]/g);
-restrictInput('vp-paydays', /[^0-9]/g);
+restrictInput('vp-paydays', /[^0-9-]/g);
+restrictInput('f-paydays',  /[^0-9-]/g);
 
 // ══ 新增發票表單：Tab 順序客製化 ═══════════════════════
 // 快速路徑固定順序：代碼(1)→發票日期(2)→發票號碼(3)→PO(4)→儲存發票(5)，
