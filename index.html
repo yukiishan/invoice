@@ -309,6 +309,15 @@
     - 因為欄位現在需要能輸入「-」這個非數字字元，欄位型別從 type=number
       改成 type=text，並加上限制只能輸入數字或「-」（跟代碼欄位一樣的
       即時過濾機制，含中文注音輸入法的防護）
+
+  v1.36  2026-09-11
+    - 修正行事曆的「預計付款日」事件：一筆發票只要付款日一過，就會被每
+      天凌晨的排程自動歸檔到歷史資料、從發票資料移除，但行事曆之前只讀
+      發票資料（invoices），歸檔後那個付款日事件就會跟著從行事曆上消失，
+      等於歷史紀錄被清掉了。現在行事曆會同時讀取發票資料＋歷史資料，就
+      算已經歸檔，付款日當天的事件還是會繼續顯示，不受歸檔影響。切到行
+      事曆分頁時，如果歷史資料還沒載入過，會在背景自動載入一次（不影響
+      畫面立即顯示，載入完成後才把歷史資料的事件補上去）
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -1888,7 +1897,19 @@ function sw(name, btn){
   }
   if(name === 'vendors') renderVendors();
   if(name === 'payment') renderPayInv();
-  if(name === 'calendar') renderCal();
+  if(name === 'calendar'){
+    renderCal(); // 先用目前手上的資料畫一次（若歷史資料已經載入過，這次就會一併含入）
+    // 行事曆要顯示「預計付款日」事件，就算那筆發票因為已經過期被每日排程
+    // 歸檔到歷史資料、從 invoices 移除，也不能讓行事曆上的付款日事件跟著
+    // 消失——所以這裡確保歷史資料至少載入過一次，載入完成後如果使用者還
+    // 停留在行事曆分頁（沒切走），就再畫一次讓歷史資料的事件顯示出來
+    if(!_historyLoaded){
+      ensureHistoryForCalendar().then(() => {
+        const tabEl = document.getElementById('tab-calendar');
+        if(tabEl && tabEl.classList.contains('active')) renderCal();
+      });
+    }
+  }
   if(name === 'history') loadHistory();
   if(name === 'list'){
     if(_listNeedsRefresh){ renderTable(); _listNeedsRefresh=false; }
@@ -2113,6 +2134,20 @@ async function loadHistory(force){
   renderHistory();
 }
 
+// 專供行事曆使用：確保歷史資料至少載入過一次（跟 loadHistory() 分開寫，
+// 避免動到「歷史資料」分頁自己的載入中提示／表格重繪，兩邊互不干擾）。
+// 已經載入過就直接跳過，不會重複打 API。
+async function ensureHistoryForCalendar(){
+  if(_historyLoaded) return;
+  try{
+    const hist = await apiGet('getInvoiceHistory');
+    invoiceHistory = Array.isArray(hist) ? hist : [];
+    _historyLoaded = true;
+  }catch(e){
+    if(e.message !== '請重新登入') console.warn('[Calendar] 載入歷史資料失敗，行事曆可能無法顯示已歸檔發票的付款日事件：', e.message);
+  }
+}
+
 // 手動立即執行一次歸檔（測試/補跑用，平常由後端每日 01:00 自動排程執行）
 async function runArchiveNow(){
   const btn = document.getElementById('archiveNowBtn');
@@ -2154,8 +2189,15 @@ function renderCal(){
   const y = +document.getElementById('calY').value, m = +document.getElementById('calM').value;
   const now = new Date();
   const evs = {};
-  invoices.forEach(r => {
+  // 行事曆的「預計付款日」事件要同時涵蓋 invoices（尚未歸檔）跟
+  // invoiceHistory（已經因為過期被每日排程搬到歷史資料的發票）：不然
+  // 一筆發票只要付款日一過就被歸檔，行事曆上原本顯示的那個事件會跟著
+  // 消失，等於行事曆的紀錄被「清掉」了，這是使用者不想要的行為。用 id
+  // 去重，避免萬一同一筆資料短暫同時出現在兩邊時，行事曆上重複顯示兩次。
+  const seenIds = new Set();
+  invoices.concat(invoiceHistory).forEach(r => {
     if(!r.paydate) return;
+    if(r.id){ if(seenIds.has(r.id)) return; seenIds.add(r.id); }
     if(!evs[r.paydate]) evs[r.paydate] = [];
     evs[r.paydate].push({ cls:'evpay', lbl:`(PAY)${r.code||''}§${r.vendor||''}§${r.invoice||''}§${(r.po||[]).join(', ')}` });
   });
