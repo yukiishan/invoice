@@ -318,6 +318,15 @@
       算已經歸檔，付款日當天的事件還是會繼續顯示，不受歸檔影響。切到行
       事曆分頁時，如果歷史資料還沒載入過，會在背景自動載入一次（不影響
       畫面立即顯示，載入完成後才把歷史資料的事件補上去）
+
+  v1.37  2026-09-11
+    - 發票列表／付款管理／歷史資料這三個分頁的表格標題，改成可以點選排
+      序：點一下由小到大排序（標題會顯示 ▲），再點一下同一個標題切換成
+      由大到小（▼），點別的標題則改排那一欄、方向重設為由小到大。「操
+      作」欄（發票列表最後一欄的按鈕）不能排序，其餘欄位（含徽章顯示的
+      發票形式／幣別／稅別／付款狀態）都可以。排序狀態只存在瀏覽器記憶
+      體裡，重新整理頁面（也就是重新登入）就會自動恢復成預設順序，不需
+      要另外清除
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -416,6 +425,9 @@ body{font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;background:var(-
 .twrap{background:var(--sf);border:1px solid var(--bd);border-radius:var(--rl);overflow:auto}
 table{width:100%;border-collapse:collapse;font-size:11px}
 thead th{padding:6px 7px;text-align:left;font-size:10px;font-weight:700;color:var(--tx2);background:var(--sf2);border-bottom:1px solid var(--bd);white-space:nowrap;position:sticky;top:0;z-index:2;letter-spacing:.03em}
+thead th.sortable-th{cursor:pointer;user-select:none}
+thead th.sortable-th:hover{background:var(--bd2)}
+.sort-arrow{display:inline-block;width:10px;color:var(--blue);font-size:9px}
 tbody tr{border-bottom:1px solid var(--bd)}
 tbody tr:last-child{border-bottom:none}
 tbody tr:hover{background:#edf2f8}
@@ -659,9 +671,9 @@ tbody td{padding:5px 7px;vertical-align:middle}
       <table>
         <thead>
           <tr>
-            <th>代碼</th><th>廠商</th><th>發票日期</th><th>發票號碼</th>
-            <th>PO#</th><th>發票形式</th><th>幣別</th><th>稅別</th>
-            <th>完成日（驗收日）</th><th>預計付款日</th><th>操作</th>
+            <th class="sortable-th" data-sort-key="code" onclick="sortListBy('code')">代碼<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="vendor" onclick="sortListBy('vendor')">廠商<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="date" onclick="sortListBy('date')">發票日期<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="invoice" onclick="sortListBy('invoice')">發票號碼<span class="sort-arrow"></span></th>
+            <th class="sortable-th" data-sort-key="po" onclick="sortListBy('po')">PO#<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="invtype" onclick="sortListBy('invtype')">發票形式<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="currency" onclick="sortListBy('currency')">幣別<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="tax" onclick="sortListBy('tax')">稅別<span class="sort-arrow"></span></th>
+            <th class="sortable-th" data-sort-key="finish" onclick="sortListBy('finish')">完成日（驗收日）<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="paydate" onclick="sortListBy('paydate')">預計付款日<span class="sort-arrow"></span></th><th>操作</th>
           </tr>
         </thead>
         <tbody id="tbl-body"></tbody>
@@ -876,9 +888,9 @@ tbody td{padding:5px 7px;vertical-align:middle}
       <table>
         <thead>
           <tr>
-            <th>代碼</th><th class="td-vendor">廠商</th><th>發票日期</th><th>發票號碼</th><th>PO#</th>
-            <th>發票形式</th><th>幣別</th><th>稅別</th>
-            <th>完成日（驗收日）</th><th>預計付款日</th><th>備註</th><th>付款狀態</th>
+            <th class="sortable-th" data-sort-key="code" onclick="sortPayBy('code')">代碼<span class="sort-arrow"></span></th><th class="sortable-th td-vendor" data-sort-key="vendor" onclick="sortPayBy('vendor')">廠商<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="date" onclick="sortPayBy('date')">發票日期<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="invoice" onclick="sortPayBy('invoice')">發票號碼<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="po" onclick="sortPayBy('po')">PO#<span class="sort-arrow"></span></th>
+            <th class="sortable-th" data-sort-key="invtype" onclick="sortPayBy('invtype')">發票形式<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="currency" onclick="sortPayBy('currency')">幣別<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="tax" onclick="sortPayBy('tax')">稅別<span class="sort-arrow"></span></th>
+            <th class="sortable-th" data-sort-key="finish" onclick="sortPayBy('finish')">完成日（驗收日）<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="paydate" onclick="sortPayBy('paydate')">預計付款日<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="remark" onclick="sortPayBy('remark')">備註<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="payst" onclick="sortPayBy('payst')">付款狀態<span class="sort-arrow"></span></th>
           </tr>
         </thead>
         <tbody id="ptb"></tbody>
@@ -928,9 +940,9 @@ tbody td{padding:5px 7px;vertical-align:middle}
       <table>
         <thead>
           <tr>
-            <th>代碼</th><th class="td-vendor">廠商</th><th>發票日期</th><th>發票號碼</th><th>PO#</th>
-            <th>發票形式</th><th>幣別</th><th>稅別</th>
-            <th>完成日（驗收日）</th><th>預計付款日</th><th>備註</th><th>付款狀態</th>
+            <th class="sortable-th" data-sort-key="code" onclick="sortHistBy('code')">代碼<span class="sort-arrow"></span></th><th class="sortable-th td-vendor" data-sort-key="vendor" onclick="sortHistBy('vendor')">廠商<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="date" onclick="sortHistBy('date')">發票日期<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="invoice" onclick="sortHistBy('invoice')">發票號碼<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="po" onclick="sortHistBy('po')">PO#<span class="sort-arrow"></span></th>
+            <th class="sortable-th" data-sort-key="invtype" onclick="sortHistBy('invtype')">發票形式<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="currency" onclick="sortHistBy('currency')">幣別<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="tax" onclick="sortHistBy('tax')">稅別<span class="sort-arrow"></span></th>
+            <th class="sortable-th" data-sort-key="finish" onclick="sortHistBy('finish')">完成日（驗收日）<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="paydate" onclick="sortHistBy('paydate')">預計付款日<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="remark" onclick="sortHistBy('remark')">備註<span class="sort-arrow"></span></th><th class="sortable-th" data-sort-key="payst" onclick="sortHistBy('payst')">付款狀態<span class="sort-arrow"></span></th>
           </tr>
         </thead>
         <tbody id="htb"></tbody>
@@ -1734,16 +1746,77 @@ function _makeCell(content, style){
   return td;
 }
 
+// ══ 表頭點選排序（發票列表／付款管理／歷史資料共用）═══════════
+// 點表頭在「由小到大」「由大到小」之間切換；排序狀態只存在這幾個純記憶體
+// 變數裡，不會寫進 localStorage／sessionStorage，所以重新整理頁面（也就是
+// 重新登入）就會自動恢復成預設順序，不需要另外寫重置的程式碼。
+function _mkSortState(){ return { key: null, dir: 1 }; } // dir: 1=由小到大, -1=由大到小
+let _listSort = _mkSortState();
+let _paySort  = _mkSortState();
+let _histSort = _mkSortState();
+
+const SORT_VALUE_GETTERS = {
+  code:     r => r.code || '',
+  vendor:   r => r.vendor || '',
+  date:     r => r.date || '',
+  invoice:  r => r.invoice || '',
+  po:       r => (r.po||[]).join(','),
+  invtype:  r => deriveInvType(r.date, r.invoice) || (r.invtype && r.invtype!=='—' ? r.invtype : ''),
+  currency: r => r.currency || '',
+  tax:      r => r.tax || '',
+  finish:   r => r.finish || '',
+  paydate:  r => r.paydate || '',
+  remark:   r => r.remark || '',
+  payst:    r => payStatusInv(r).label || ''
+};
+
+function _applySortState(list, state){
+  if(!state.key) return list;
+  const getter = SORT_VALUE_GETTERS[state.key];
+  if(!getter) return list;
+  const sorted = list.slice().sort((a,b) => String(getter(a)).localeCompare(String(getter(b)), 'zh-Hant', {numeric:true, sensitivity:'base'}));
+  if(state.dir === -1) sorted.reverse();
+  return sorted;
+}
+function _toggleSortState(state, key){
+  if(state.key === key) state.dir = -state.dir;
+  else { state.key = key; state.dir = 1; }
+}
+function _paintSortArrows(theadEl, state){
+  if(!theadEl) return;
+  theadEl.querySelectorAll('th[data-sort-key]').forEach(th => {
+    const arrow = th.querySelector('.sort-arrow');
+    if(!arrow) return;
+    arrow.textContent = th.dataset.sortKey === state.key ? (state.dir === 1 ? '▲' : '▼') : '';
+  });
+}
+function sortListBy(key){
+  _toggleSortState(_listSort, key);
+  _paintSortArrows(document.querySelector('#tab-list thead'), _listSort);
+  renderTable();
+}
+function sortPayBy(key){
+  _toggleSortState(_paySort, key);
+  _paintSortArrows(document.querySelector('#tab-payment thead'), _paySort);
+  renderPayInv();
+}
+function sortHistBy(key){
+  _toggleSortState(_histSort, key);
+  _paintSortArrows(document.querySelector('#tab-history thead'), _histSort);
+  renderHistory();
+}
+
 function renderTable(){
   const q    = document.getElementById('s-text').value.toLowerCase();
   const sf   = document.getElementById('s-finish').value;
   const stax = (document.getElementById('s-tax')||{}).value || '';
-  const data = invoices.filter(r => {
+  let data = invoices.filter(r => {
     const ms = !q || [r.vendor,r.code,r.invoice,...(r.po||[]),r.remark,r.sp].join(' ').toLowerCase().includes(q);
     const mf = !sf || (sf==='done'&&r.finish) || (sf==='pend'&&!r.finish);
     const mt = !stax || r.tax === stax;
     return ms && mf && mt;
   });
+  data = _applySortState(data, _listSort);
 
   const tbody = document.getElementById('tbl-body');
   tbody.innerHTML = '';
@@ -2077,7 +2150,12 @@ function renderPayInv(){
 
   let list = invoices.filter(r => matchRec(r) && matchDate(r));
   if(payFilterSt) list = list.filter(r => payStatusInv(r).label === payFilterSt);
-  list = list.slice().sort((a,b) => String(a.paydate||'9999-99-99').localeCompare(String(b.paydate||'9999-99-99')));
+  if(_paySort.key){
+    list = _applySortState(list, _paySort);
+  } else {
+    // 預設順序：依「預計付款日」由近到遠排序
+    list = list.slice().sort((a,b) => String(a.paydate||'9999-99-99').localeCompare(String(b.paydate||'9999-99-99')));
+  }
 
   tb.innerHTML = list.length ? list.map(r => payLikeRowHtml(r, true)).join('')
     : `<tr><td colspan="12"><div style="text-align:center;padding:24px;color:var(--tx3)">${dFilter?`無符合 ${dFilter} 的資料`:'無資料'}</div></td></tr>`;
@@ -2107,8 +2185,12 @@ function renderHistory(){
   }
 
   let list = invoiceHistory.filter(r => matchRec(r) && matchDate(r));
-  // 歷史資料以「預計付款日」新到舊排序，最近歸檔的排前面比較直覺
-  list = list.slice().sort((a,b) => String(b.paydate||'').localeCompare(String(a.paydate||'')));
+  if(_histSort.key){
+    list = _applySortState(list, _histSort);
+  } else {
+    // 預設順序：歷史資料以「預計付款日」新到舊排序，最近歸檔的排前面比較直覺
+    list = list.slice().sort((a,b) => String(b.paydate||'').localeCompare(String(a.paydate||'')));
+  }
 
   const cnt = document.getElementById('h-count');
   if(cnt) cnt.textContent = list.length === invoiceHistory.length
