@@ -327,6 +327,20 @@
       發票形式／幣別／稅別／付款狀態）都可以。排序狀態只存在瀏覽器記憶
       體裡，重新整理頁面（也就是重新登入）就會自動恢復成預設順序，不需
       要另外清除
+
+  v1.38  2026-09-11
+    - ⚠ 後端同步更新（Code.gs 版本 1.4，需要貼進 Google Apps Script 並
+      重新部署才會生效）：修正「事後才補登國定假日，已經算好的預計付款
+      日不會跟著更新」的問題。之前的情況是：完成日輸入當下就已經依當時
+      的假日清單把預計付款日算好、直接存下來；如果那之後才補登一個剛好
+      卡到某幾筆預計付款日的國定假日，那些日期理論上應該順延到下一個上
+      班日，但因為是「算完才補登假日」不會自動重算，資料會一直停在錯的
+      日期，得自己點進每一筆重新編輯存一次才會更新。現在改成：儲存國定
+      假日時，會自動比對出這次新增的假日日期，找出發票資料／歷史資料裡
+      「預計付款日剛好等於新假日、而且是用公式自動算出來的」（付款天數
+      是手動輸入「-」的不受影響），重新計算正確的順延日期並直接更新、
+      存回去，發票列表／付款管理／歷史資料的畫面都會一併反映最新結果，
+      不用再一筆一筆手動點進去重存
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -975,7 +989,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
     <div class="hol-list" id="hol-list"></div>
     <div class="mkft">
       <button class="btn" onclick="closeHolModal()">取消</button>
-      <button class="btn primary" onclick="saveHolidaysCloud();closeHolModal()">✓ 儲存</button>
+      <button class="btn primary" onclick="commitHolidaysSave()">✓ 儲存</button>
     </div>
   </div>
 </div>
@@ -1299,6 +1313,12 @@ async function startApp(){
 async function saveInvoicesCloud(){
   try { await apiPost('saveInvoices', invoices); lSave('invoices', invoices); }
   catch(e){ lSave('invoices', invoices); if(e.message !== '請重新登入') ntf('⚠ 雲端儲存失敗，已存本地'); }
+}
+// 歷史資料本身沒有本機快取（loadHistory() 每次都是即時向後端拉最新的），
+// 所以這裡不用像 saveInvoicesCloud() 一樣額外呼叫 lSave()
+async function saveInvoiceHistoryCloud(){
+  try { await apiPost('saveInvoiceHistory', invoiceHistory); }
+  catch(e){ if(e.message !== '請重新登入') ntf('⚠ 歷史資料更新儲存失敗：' + e.message); }
 }
 async function saveVendorsCloud(){
   try { await apiPost('saveVendors', vendors); lSave('vendors', vendors); }
@@ -2359,6 +2379,65 @@ function addHoliday(){
   ntf('✓ 假日已新增（請按儲存）');
 }
 function delHoliday(i){ holidays.splice(i,1); renderHolList(); }
+
+// 事後補登國定假日時的預計付款日修正：
+// 「預計付款日」是輸入完成日（＋幣別／付款天數）當下，依那時候已知的假日
+// 清單一次計算好、直接存進資料的最終結果；如果事後才補登一個國定假日，
+// 剛好跟某幾筆已經算好的「預計付款日」同一天，那些日期理論上應該要順延
+// 到下一個上班日，但因為是「已經算完才補登假日」，不會自動重算，資料就
+// 一直停在錯的日期，除非使用者自己點進去那筆重新編輯儲存一次才會更新。
+// 這裡在儲存國定假日的當下，主動找出「這次新增、之前不存在的假日日期」，
+// 針對發票資料（invoices）／歷史資料（invoiceHistory）裡「預計付款日剛好
+// 等於這個新假日」且是用公式自動算出來的（有完成日＋幣別，付款天數不是
+// 手動輸入的「-」）資料，重新算一次正確的順延日期並更新回去。
+function recalcPaydatesForNewHolidays(newHolidayDates){
+  const result = { invoicesChanged: 0, historyChanged: 0 };
+  if(!newHolidayDates || !newHolidayDates.length) return result;
+  const dateSet = new Set(newHolidayDates);
+
+  function fixList(list){
+    let changed = 0;
+    list.forEach(r => {
+      if(!r.paydate || !dateSet.has(r.paydate)) return;
+      if(!r.finish || !r.currency) return;
+      if(pdIsManual(r.paydays)) return; // 付款天數是「-」的手動輸入資料不動
+      const fixed = calcPayDateDirect(r.finish, r.currency, r.paydays);
+      if(fixed && fixed !== r.paydate){ r.paydate = fixed; changed++; }
+    });
+    return changed;
+  }
+
+  result.invoicesChanged = fixList(invoices);
+  result.historyChanged  = fixList(invoiceHistory);
+  return result;
+}
+
+// 國定假日「✓ 儲存」按鈕實際呼叫的函式：跟原本比對出這次新增的假日日期
+// （用目前還沒更新的 holSet 當基準），儲存完假日、holSet 換成新的之後，
+// 再用新假日去重新檢查並修正受影響的預計付款日，最後把有異動的部分存回
+// 後端。就算儲存假日失敗（離線／連線問題），比對邏輯仍會照常執行，跟
+// saveHolidaysCloud() 本身「即使雲端儲存失敗也照樣更新本機 holSet」的
+// 既有行為一致。
+async function commitHolidaysSave(){
+  const newDates = holidays.map(h => h.date).filter(d => !holSet.has(d));
+  await saveHolidaysCloud(); // 內部會在成功或失敗後都呼叫 buildHolSet() 讓新假日生效
+  closeHolModal();
+  if(!newDates.length) return;
+
+  const { invoicesChanged, historyChanged } = recalcPaydatesForNewHolidays(newDates);
+  if(!invoicesChanged && !historyChanged) return;
+
+  if(invoicesChanged){
+    _listNeedsRefresh = true;
+    renderTable(); renderPayInv();
+    await saveInvoicesCloud();
+  }
+  if(historyChanged){
+    renderHistory();
+    await saveInvoiceHistoryCloud();
+  }
+  ntf(`✓ 依新假日已修正 ${invoicesChanged + historyChanged} 筆預計付款日`);
+}
 document.getElementById('hol-modal').addEventListener('click', function(e){ if(e.target === this) closeHolModal(); });
 document.getElementById('track-modal').addEventListener('click', function(e){ if(e.target === this) closeTrackModal(); });
 document.getElementById('backup-modal').addEventListener('click', function(e){ if(e.target === this) closeBackup(); });
