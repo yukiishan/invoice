@@ -341,6 +341,38 @@
       是手動輸入「-」的不受影響），重新計算正確的順延日期並直接更新、
       存回去，發票列表／付款管理／歷史資料的畫面都會一併反映最新結果，
       不用再一筆一筆手動點進去重存
+
+  v1.39  2026-09-11
+    - 國定假日「刪除」也會一併觸發預計付款日檢查（原本 v1.38 只有「新增」
+      假日才會比對）。做法改成：不論這次是新增或刪除假日，儲存後都直接拿
+      「目前的假日清單」跟每一筆發票資料／歷史資料「目前存的預計付款日」
+      比對，只要預計付款日剛好落在假日清單裡（且是公式自動算出來的，付款
+      天數手動輸入「-」的不受影響），就重新算一次正確的日期並更新、存回
+      去。比對只看「預計付款日 vs 假日清單」，不重新驗算完成日等其餘欄位，
+      藉此縮短檢查時間
+      ※ 已知限制：刪除假日的情況，如果某筆資料的預計付款日「當初因為那天
+      是假日而順延到別天」（例如 10/26 是假日、順延存成 10/27），事後把
+      10/26 從假日清單刪除，這筆資料存的 10/27 本身並不是假日，不會被這個
+      比對抓到，仍會維持 10/27、不會自動提前回 10/26。若要連這種情況都抓
+      出來，需要把「目前所有資料」的預計付款日整批重新驗算一次比對差異，
+      成本較高，目前先以「只比對是否卡到假日」的做法優先，之後如有需要可
+      再加強
+    - 右上角「📅 國定假日」按鈕左側新增「🔍 驗證付款日」按鈕，可隨時手動
+      觸發上述比對（不需要先異動假日），適合用於：懷疑目前資料有預計付款
+      日卡到假日清單、或想在還沒異動假日前先檢查一次目前狀態時使用；若沒
+      有需要修正的資料，會提示「已檢查，沒有預計付款日卡到假日清單」
+
+  v1.40  2026-09-11
+    - 補強 v1.39 提到的已知限制：刪除國定假日時，改成不再只比對「預計付款
+      日是否剛好等於假日」，而是完整重新驗算一次所有符合資格的資料（有完
+      成日＋幣別、付款天數非手動輸入「-」），跟目前存的預計付款日比對、
+      不一樣才更新。這樣不管這次刪除的是連續假期中的哪一天（第一天、中間
+      、最後一天皆可），都能正確抓出受影響的資料並修正，不會再有漏網之魚
+      ；新增假日則維持原本較快速的比對方式（預計付款日剛好等於新假日）即
+      可涵蓋，不需要整批重算
+    - 右上角「🔍 驗證付款日」按鈕改成一律用完整重算，確保手動點擊時能抓到
+      目前資料裡所有卡到假日清單的錯誤日期，不會有前述的漏抓情況；沒有需
+      要修正的資料時提示文字調整為「已檢查，沒有需要修正的預計付款日」
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -642,6 +674,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
   </div>
   <div class="tb-right">
     <span id="hdr-count" style="font-size:11px;color:var(--tx3);margin-right:2px"></span>
+    <button class="btn sm" onclick="manualRecalcPaydates()" title="比對目前所有資料的預計付款日是否卡到假日清單，有衝突的話修正為正確日期">🔍 驗證付款日</button>
     <button class="btn sm warn" onclick="openHolModal()">📅 國定假日</button>
     <button class="btn sm warn" onclick="openTrackModal()">📑 發票字軌</button>
     <button class="btn sm" onclick="exportXLSX()">⬇ Excel</button>
@@ -2380,25 +2413,36 @@ function addHoliday(){
 }
 function delHoliday(i){ holidays.splice(i,1); renderHolList(); }
 
-// 事後補登國定假日時的預計付款日修正：
+// 國定假日異動（新增或刪除）後的預計付款日修正：
 // 「預計付款日」是輸入完成日（＋幣別／付款天數）當下，依那時候已知的假日
-// 清單一次計算好、直接存進資料的最終結果；如果事後才補登一個國定假日，
-// 剛好跟某幾筆已經算好的「預計付款日」同一天，那些日期理論上應該要順延
-// 到下一個上班日，但因為是「已經算完才補登假日」，不會自動重算，資料就
-// 一直停在錯的日期，除非使用者自己點進去那筆重新編輯儲存一次才會更新。
-// 這裡在儲存國定假日的當下，主動找出「這次新增、之前不存在的假日日期」，
-// 針對發票資料（invoices）／歷史資料（invoiceHistory）裡「預計付款日剛好
-// 等於這個新假日」且是用公式自動算出來的（有完成日＋幣別，付款天數不是
-// 手動輸入的「-」）資料，重新算一次正確的順延日期並更新回去。
-function recalcPaydatesForNewHolidays(newHolidayDates){
+// 清單一次計算好、直接存進資料的最終結果；如果事後才補登或刪除一個國定
+// 假日，導致某幾筆已經算好的「預計付款日」不再正確，但因為是「已經算完
+// 才異動假日」，不會自動重算，資料就一直停在錯的日期，除非使用者自己點
+// 進去那筆重新編輯儲存一次才會更新。這裡提供兩種檢查方式：
+//
+// 1) recalcPaydatesQuick()：輕量比對，只看「目前存的預計付款日」是否剛好
+//    落在目前的假日清單上——這種情況只會發生在「新增」假日、且新假日剛好
+//    等於某筆已算好的預計付款日時。速度快，但無法偵測「刪除」假日造成的
+//    問題：因為刪除假日後，原本因為那天是假日而順延存下來的日期，本身通
+//    常已經不是假日了（例如原本順延到10/27，10/27本身不是假日），這種比
+//    對方式看不出來需要修正。
+//
+// 2) recalcPaydatesFull()：完整重算，把每一筆有完成日＋幣別、且不是手動
+//    輸入「-」的資料，全部重新用公式算一次，跟目前存的預計付款日比對，
+//    不一樣就更新。不管是新增還是刪除假日、也不管刪除的是連續假期中的哪
+//    一天，都能正確抓出受影響的資料，缺點是比對成本比輕量版高（要重算
+//    「全部」符合資格的資料，不是只挑「疑似有問題」的那幾筆）。
+//
+// 實際用法：儲存假日時，若這次「有刪除任何既有假日」，一律用完整重算
+// （最準確，涵蓋新增＋刪除各種情況）；若只有新增、沒有刪除，用輕量版就
+// 足夠。右上角手動「🔍 驗證付款日」按鈕則不管當下有沒有異動假日，都直接
+// 用完整重算，確保隨時點都能抓到目前資料裡所有卡到假日的錯誤日期。
+function recalcPaydatesQuick(){
   const result = { invoicesChanged: 0, historyChanged: 0 };
-  if(!newHolidayDates || !newHolidayDates.length) return result;
-  const dateSet = new Set(newHolidayDates);
-
   function fixList(list){
     let changed = 0;
     list.forEach(r => {
-      if(!r.paydate || !dateSet.has(r.paydate)) return;
+      if(!r.paydate || !holSet.has(r.paydate)) return;
       if(!r.finish || !r.currency) return;
       if(pdIsManual(r.paydays)) return; // 付款天數是「-」的手動輸入資料不動
       const fixed = calcPayDateDirect(r.finish, r.currency, r.paydays);
@@ -2406,26 +2450,33 @@ function recalcPaydatesForNewHolidays(newHolidayDates){
     });
     return changed;
   }
-
+  result.invoicesChanged = fixList(invoices);
+  result.historyChanged  = fixList(invoiceHistory);
+  return result;
+}
+function recalcPaydatesFull(){
+  const result = { invoicesChanged: 0, historyChanged: 0 };
+  function fixList(list){
+    let changed = 0;
+    list.forEach(r => {
+      if(!r.paydate) return;
+      if(!r.finish || !r.currency) return;
+      if(pdIsManual(r.paydays)) return; // 付款天數是「-」的手動輸入資料不動
+      const fixed = calcPayDateDirect(r.finish, r.currency, r.paydays);
+      if(fixed && fixed !== r.paydate){ r.paydate = fixed; changed++; }
+    });
+    return changed;
+  }
   result.invoicesChanged = fixList(invoices);
   result.historyChanged  = fixList(invoiceHistory);
   return result;
 }
 
-// 國定假日「✓ 儲存」按鈕實際呼叫的函式：跟原本比對出這次新增的假日日期
-// （用目前還沒更新的 holSet 當基準），儲存完假日、holSet 換成新的之後，
-// 再用新假日去重新檢查並修正受影響的預計付款日，最後把有異動的部分存回
-// 後端。就算儲存假日失敗（離線／連線問題），比對邏輯仍會照常執行，跟
-// saveHolidaysCloud() 本身「即使雲端儲存失敗也照樣更新本機 holSet」的
-// 既有行為一致。
-async function commitHolidaysSave(){
-  const newDates = holidays.map(h => h.date).filter(d => !holSet.has(d));
-  await saveHolidaysCloud(); // 內部會在成功或失敗後都呼叫 buildHolSet() 讓新假日生效
-  closeHolModal();
-  if(!newDates.length) return;
-
-  const { invoicesChanged, historyChanged } = recalcPaydatesForNewHolidays(newDates);
-  if(!invoicesChanged && !historyChanged) return;
+// 共用：把 recalcFn() 找出來的異動更新畫面並存回後端，回傳有無異動（給
+// 呼叫端決定要不要另外提示「沒有需要修正的資料」）。
+async function applyPaydateRecalc(recalcFn){
+  const { invoicesChanged, historyChanged } = recalcFn();
+  if(!invoicesChanged && !historyChanged) return false;
 
   if(invoicesChanged){
     _listNeedsRefresh = true;
@@ -2436,7 +2487,33 @@ async function commitHolidaysSave(){
     renderHistory();
     await saveInvoiceHistoryCloud();
   }
-  ntf(`✓ 依新假日已修正 ${invoicesChanged + historyChanged} 筆預計付款日`);
+  ntf(`✓ 依假日清單已修正 ${invoicesChanged + historyChanged} 筆預計付款日`);
+  return true;
+}
+
+// 國定假日「✓ 儲存」按鈕實際呼叫的函式：儲存前先比對「這次有沒有刪除既有
+// 假日」（用儲存前的 holSet 當基準，跟即將存入的 holidays 清單比對），再
+// 存假日（內部會在成功或失敗後都呼叫 buildHolSet() 讓新的假日清單生效）。
+// 有刪除的話一律用完整重算（涵蓋新增＋刪除，不會漏掉連續假期中間被刪除
+// 的情況）；只有新增沒有刪除的話，用輕量比對即可。
+async function commitHolidaysSave(){
+  const oldDateSet = new Set(holSet); // 儲存前的假日清單（尚未套用這次的異動）
+  const newDateSet = new Set(holidays.map(h => h.date));
+  const hasDeletion = [...oldDateSet].some(d => !newDateSet.has(d));
+  const hasAddition = [...newDateSet].some(d => !oldDateSet.has(d));
+
+  await saveHolidaysCloud();
+  closeHolModal();
+
+  if(hasDeletion) await applyPaydateRecalc(recalcPaydatesFull);
+  else if(hasAddition) await applyPaydateRecalc(recalcPaydatesQuick);
+}
+
+// 右上角「🔍 驗證付款日」按鈕：不需要先異動假日，隨時手動觸發一次「完整
+// 重算」，把目前資料裡所有卡到假日清單的錯誤預計付款日修正回來。
+async function manualRecalcPaydates(){
+  const changed = await applyPaydateRecalc(recalcPaydatesFull);
+  if(!changed) ntf('✓ 已檢查，沒有需要修正的預計付款日');
 }
 document.getElementById('hol-modal').addEventListener('click', function(e){ if(e.target === this) closeHolModal(); });
 document.getElementById('track-modal').addEventListener('click', function(e){ if(e.target === this) closeTrackModal(); });
