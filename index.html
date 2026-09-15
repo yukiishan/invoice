@@ -402,6 +402,11 @@
       直接照原本邏輯處理）。這個機制預期能大幅減少這種暫時性問題造成的
       使用者可見錯誤，但如果之後還是常常跳出「雲端儲存失敗」，代表問題不
       只是偶發的短暫狀況，需要再進一步觀察發生頻率
+
+  v1.43  2026-09-15
+    - 行事曆點選日期彈出的「預計付款」明細框框，改成依代碼排序（0~9、
+      A~Z），不再照資料原本的順序顯示（v1.41 合併同代碼＋廠商框框的邏輯
+      不受影響，一樣先合併再排序）
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -2439,7 +2444,9 @@ function showDayPopup(ds, evList, holName){
       if(!groups.has(key)) groups.set(key, { code, vendor, items: [] });
       if(inv || po) groups.get(key).items.push({ inv, po });
     });
-    groups.forEach(g => {
+    // 框框依代碼排序（0~9、A~Z），不再照資料原本的順序顯示
+    const sortedGroups = [...groups.values()].sort((a,b) => a.code.localeCompare(b.code, 'zh-Hant', {numeric:true, sensitivity:'base'}));
+    sortedGroups.forEach(g => {
       const detail = g.items.map(it => it.po ? `${esc(it.inv)}(${esc(it.po)})` : esc(it.inv)).join(';');
       body += `<div class="cal-ev-item cal-ev-pay">
         <div class="cal-ev-title">💰 預計付款</div>
