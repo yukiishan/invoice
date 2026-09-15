@@ -373,6 +373,35 @@
     - 右上角「🔍 驗證付款日」按鈕改成一律用完整重算，確保手動點擊時能抓到
       目前資料裡所有卡到假日清單的錯誤日期，不會有前述的漏抓情況；沒有需
       要修正的資料時提示文字調整為「已檢查，沒有需要修正的預計付款日」
+
+  v1.41  2026-09-15
+    - 行事曆點選日期彈出的「預計付款」明細：同一天的付款明細裡，代碼＋
+      廠商都相同的話，合併顯示成同一個框框（不再一筆一個框框），並把原本
+      分開的「發票號」「PO#」兩行，合併成一行「發票號/PO#」，多筆用「;」
+      串接、每筆格式為「發票號(PO#)」（沒有 PO# 的那筆只顯示發票號，不會
+      出現空括號）
+    - 「⚠ 雲端儲存失敗，已存本地」這個提示（發票資料／廠商資料／國定假日
+      共用）目前只顯示通用文字，沒有留下實際的錯誤原因，這次補上：失敗時
+      把 e.message 額外記錄到瀏覽器 console（[Cloud] 開頭），下次再遇到的
+      話，可以打開瀏覽器開發者工具的 Console 分頁截圖，才有具體線索可以
+      往下查；資料本身這次沒有遺失（畫面顯示「已存本地」時，資料已經存進
+      瀏覽器本機快取，之後只要再次成功儲存雲端就會補上，不需要特別處理）
+
+  v1.42  2026-09-15
+    - 承上：使用者回報後續截圖看到瀏覽器主控台有多筆「script.googleuserc
+      ontent...404」的紅色錯誤，這是 Google Apps Script 的 Web App 網址在
+      幕後常會再轉導到 script.googleusercontent.com 這個網域回傳實際內容，
+      如果那個環節剛好短暫出狀況（Google 平台端的暫時性問題，並非我們
+      Code.gs 本身的邏輯錯誤），瀏覽器 fetch 拿到的就不是預期的 JSON，
+      而是一個錯誤頁面，導致解析 JSON 直接失敗、進而觸發「雲端儲存失敗，
+      已存本地」或資料讀取失敗。這類問題通常是暫時性的，幾秒後重試就會
+      恢復，因此這裡在發送 API 請求的最底層加上自動重試機制：遇到這種
+      「網路／格式層級」的失敗，最多自動重試 2 次（間隔 0.8 秒、1.8 秒漸
+      增），都失敗才會像原本一樣顯示失敗提示；如果是伺服器正常回應但内容
+      是「Token 已過期」等業務邏輯錯誤，則不會重試（重試也不會改變結果，
+      直接照原本邏輯處理）。這個機制預期能大幅減少這種暫時性問題造成的
+      使用者可見錯誤，但如果之後還是常常跳出「雲端儲存失敗」，代表問題不
+      只是偶發的短暫狀況，需要再進一步觀察發生頻率
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -1223,18 +1252,46 @@ function _onVis(){
 function _logInvalidTokenDebug(action, json){
   console.warn('[Auth] 收到 INVALID_TOKEN（action=' + action + '）伺服器診斷資訊：', json.debug || '(無 debug 資訊，可能是還沒更新到新版 Code.gs)');
 }
+
+// Google Apps Script 的 Web App /exec 網址，實際內容常會由 Google 內部再
+// 轉導到 script.googleusercontent.com 這個網域來回傳，如果那個環節剛好
+// 短暫出狀況（例如平台端暫時性問題），瀏覽器 fetch 拿到的就不是我們預期
+// 的 JSON，而是一個錯誤頁面，導致 res.json() 直接丟例外（症狀：主控台看
+// 到 script.googleusercontent.com 開頭的網址 404，App 端則顯示「雲端儲存
+// 失敗，已存本地」或資料讀取失敗）。這類狀況通常是暫時性的、幾秒後重試
+// 就會恢復，所以這裡統一在 fetch 這一層加上「失敗自動重試」：最多重試 2
+// 次（總共最多嘗試 3 次），中間間隔漸增，都失敗才把錯誤丟給呼叫端處理
+// （呼叫端會照原本邏輯顯示對應的失敗提示）。只重試「網路／格式錯誤」這種
+// 傳輸層級的失敗，正常收到的 JSON（包含 INVALID_TOKEN 或其他業務邏輯錯誤）
+// 不會重試，因為重試也不會改變結果。
+function _sleep(ms){ return new Promise(resolve => setTimeout(resolve, ms)); }
+async function _fetchApiJson(action, url, opts){
+  const RETRY_DELAYS = [800, 1800]; // 第一次失敗等 0.8 秒重試，第二次失敗等 1.8 秒再重試
+  let lastErr;
+  for(let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++){
+    try{
+      const res = await fetch(url, opts);
+      return await res.json();
+    }catch(e){
+      lastErr = e;
+      if(attempt < RETRY_DELAYS.length){
+        console.warn('[API] ' + action + ' 第 ' + (attempt+1) + ' 次失敗（' + e.message + '），' + RETRY_DELAYS[attempt] + 'ms 後自動重試…');
+        await _sleep(RETRY_DELAYS[attempt]);
+      }
+    }
+  }
+  throw lastErr;
+}
 async function apiGet(action){
   const tok = _TOKEN;
-  const res = await fetch(`${API_URL}?action=${encodeURIComponent(action)}&token=${encodeURIComponent(tok)}`);
-  const json = await res.json();
+  const json = await _fetchApiJson(action, `${API_URL}?action=${encodeURIComponent(action)}&token=${encodeURIComponent(tok)}`);
   if(json.code === 'INVALID_TOKEN'){ _logInvalidTokenDebug(action, json); if(tok===_TOKEN) _handleExpiry(); throw new Error('請重新登入'); }
   if(!json.ok) throw new Error(json.error || 'API error');
   return json.data;
 }
 async function apiPost(action, payload){
   const tok = _TOKEN;
-  const res = await fetch(API_URL, { method:'POST', body: JSON.stringify({ action, payload, token: tok }) });
-  const json = await res.json();
+  const json = await _fetchApiJson(action, API_URL, { method:'POST', body: JSON.stringify({ action, payload, token: tok }) });
   if(json.code === 'INVALID_TOKEN'){ _logInvalidTokenDebug(action, json); if(tok===_TOKEN) _handleExpiry(); throw new Error('請重新登入'); }
   if(!json.ok) throw new Error(json.error || 'API error');
   return json.data;
@@ -1345,7 +1402,7 @@ async function startApp(){
 // ══ SAVE FUNCTIONS ═════════════════════════════════
 async function saveInvoicesCloud(){
   try { await apiPost('saveInvoices', invoices); lSave('invoices', invoices); }
-  catch(e){ lSave('invoices', invoices); if(e.message !== '請重新登入') ntf('⚠ 雲端儲存失敗，已存本地'); }
+  catch(e){ lSave('invoices', invoices); if(e.message !== '請重新登入'){ console.warn('[Cloud] saveInvoices 失敗，已改存本機：', e.message); ntf('⚠ 雲端儲存失敗，已存本地'); } }
 }
 // 歷史資料本身沒有本機快取（loadHistory() 每次都是即時向後端拉最新的），
 // 所以這裡不用像 saveInvoicesCloud() 一樣額外呼叫 lSave()
@@ -1355,11 +1412,11 @@ async function saveInvoiceHistoryCloud(){
 }
 async function saveVendorsCloud(){
   try { await apiPost('saveVendors', vendors); lSave('vendors', vendors); }
-  catch(e){ lSave('vendors', vendors); if(e.message !== '請重新登入') ntf('⚠ 雲端儲存失敗，已存本地'); }
+  catch(e){ lSave('vendors', vendors); if(e.message !== '請重新登入'){ console.warn('[Cloud] saveVendors 失敗，已改存本機：', e.message); ntf('⚠ 雲端儲存失敗，已存本地'); } }
 }
 async function saveHolidaysCloud(){
   try { await apiPost('saveHolidays', holidays); lSave('holidays', holidays); buildHolSet(); }
-  catch(e){ lSave('holidays', holidays); buildHolSet(); if(e.message !== '請重新登入') ntf('⚠ 雲端儲存失敗，已存本地'); }
+  catch(e){ lSave('holidays', holidays); buildHolSet(); if(e.message !== '請重新登入'){ console.warn('[Cloud] saveHolidays 失敗，已改存本機：', e.message); ntf('⚠ 雲端儲存失敗，已存本地'); } }
 }
 
 // ══ BACKUP MODAL ═══════════════════════════════════
@@ -2369,13 +2426,24 @@ function showDayPopup(ds, evList, holName){
   if(!evList || !evList.length){
     if(!holName) body += '<div class="cal-no-ev">當天無排程</div>';
   } else {
+    // 同一天的付款明細，代碼＋廠商都相同的話合併成同一個框框：第三行改成
+    // 「發票號/PO#」，多筆用「;」串接、每筆格式為「發票號(PO#)」（沒有
+    // PO# 的話該筆只顯示發票號），不再各自佔一行。用 Map 保留原本的出現
+    // 順序（不依代碼／廠商重新排序）。
+    const groups = new Map();
     evList.forEach(ev => {
       const raw = ev.lbl.replace(/^\(PAY\)/,'');
       const pts = raw.split('§');
       const code = pts[0]||'', vendor = pts[1]||'', inv = pts[2]||'', po = pts[3]||'';
+      const key = code + '§' + vendor;
+      if(!groups.has(key)) groups.set(key, { code, vendor, items: [] });
+      if(inv || po) groups.get(key).items.push({ inv, po });
+    });
+    groups.forEach(g => {
+      const detail = g.items.map(it => it.po ? `${esc(it.inv)}(${esc(it.po)})` : esc(it.inv)).join(';');
       body += `<div class="cal-ev-item cal-ev-pay">
         <div class="cal-ev-title">💰 預計付款</div>
-        <div class="cal-ev-detail">代碼：${esc(code)}<br>廠商：${esc(vendor)}${inv?`<br>發票號：${esc(inv)}`:''}${po?`<br>PO#：${esc(po)}`:''}</div>
+        <div class="cal-ev-detail">代碼：${esc(g.code)}<br>廠商：${esc(g.vendor)}${detail?`<br>發票號/PO#：${detail}`:''}</div>
       </div>`;
     });
   }
