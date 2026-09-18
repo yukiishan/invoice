@@ -419,6 +419,23 @@
       （滑鼠點擊還是完全正常，只是不會被 Tab 帶過去），這樣完成日／預計
       付款日按 Tab 後就會直接跳到「更新發票」。用 Playwright 實際模擬按
       Tab 驗證過修正前／後的差異，確認修正後行為符合預期
+
+  v1.45  2026-09-18
+    - 使用者回報作業中短時間內連續被踢出登入兩次，這次截圖第一次拍到具體
+      的 INVALID_TOKEN 診斷訊息，但全部顯示「無 debug 資訊」，追查後發現：
+      verifyToken()（Code.gs）裡「token 是空字串／undefined」這個分支，從
+      v1.3 加診斷資訊時漏掉了，一直沒有帶 debug 欄位，導致這個分支跟「伺服
+      器端程式碼是舊版」這兩種完全不同的情況，在前端看起來是同一句話，
+      分不出來。這裡兩邊一起補：
+      ⚠ 後端修正（Code.gs 版本 1.6，需要貼進 Google Apps Script 並重新
+      部署才會生效）：verifyToken() 這個分支補上 debug 欄位＋Logger.log()。
+      前端同步補上：收到 INVALID_TOKEN 時，額外印出「這次請求實際送出的
+      token 前 8 碼（或標明是空字串）」以及「這個 token 是否仍等於目前
+      _TOKEN」，這樣下次再發生時，就算 debug 欄位還是空的，也能直接從瀏覽
+      器 console 判斷出：是這次送出的 token 真的是空的（代表前端狀態出了
+      問題，跟登入時間、伺服器端都無關），還是別的原因。下次再遇到，麻煩
+      把主控台完整截圖給我（尤其是新的這行 token 前 8 碼／是否仍為目前
+      _TOKEN 的資訊），才能確定接下來要往前端還是後端查
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -1266,8 +1283,17 @@ function _onVis(){
 // console，方便下次再發生「明明還在倒數時間內卻被踢出」時，直接從瀏覽器
 // 主控台看到具體原因（token 完全找不到／已判定過期、當下庫裡還有幾個
 // token、伺服器端算出的經過時間等），不用再用猜的。
-function _logInvalidTokenDebug(action, json){
-  console.warn('[Auth] 收到 INVALID_TOKEN（action=' + action + '）伺服器診斷資訊：', json.debug || '(無 debug 資訊，可能是還沒更新到新版 Code.gs)');
+// v1.45：之前只印出伺服器回傳的 debug 資訊，但實際發生過「debug 資訊是空
+// 的」的個案，看不出來是「伺服器端還沒更新到新版 Code.gs」還是「這次請求
+// 送出的 token 本身就是空字串」（這兩種情況在前端都會顯示同一句「無 debug
+// 資訊」，但成因完全不同：前者是後端程式碼問題，後者是前端當下 _TOKEN
+// 這個變數本身就是空的）。這裡額外印出「這次請求實際送出的 token 前 8 碼」
+// （不印出完整 token，避免外流風險）、以及「跟目前 _TOKEN 是否相同」，這樣
+// 才能直接從瀏覽器 console 分辨出到底是哪一種情況。
+function _logInvalidTokenDebug(action, json, tokSent){
+  const tokInfo = tokSent ? (tokSent.slice(0,8) + '…') : '(空字串！)';
+  const stillCurrent = tokSent === _TOKEN;
+  console.warn('[Auth] 收到 INVALID_TOKEN（action=' + action + '，送出的 token=' + tokInfo + '，是否仍為目前 _TOKEN=' + stillCurrent + '）伺服器診斷資訊：', json.debug || '(無 debug 資訊，可能是還沒更新到新版 Code.gs，或這次剛好是 token 本身為空的情況)');
 }
 
 // Google Apps Script 的 Web App /exec 網址，實際內容常會由 Google 內部再
@@ -1302,14 +1328,14 @@ async function _fetchApiJson(action, url, opts){
 async function apiGet(action){
   const tok = _TOKEN;
   const json = await _fetchApiJson(action, `${API_URL}?action=${encodeURIComponent(action)}&token=${encodeURIComponent(tok)}`);
-  if(json.code === 'INVALID_TOKEN'){ _logInvalidTokenDebug(action, json); if(tok===_TOKEN) _handleExpiry(); throw new Error('請重新登入'); }
+  if(json.code === 'INVALID_TOKEN'){ _logInvalidTokenDebug(action, json, tok); if(tok===_TOKEN) _handleExpiry(); throw new Error('請重新登入'); }
   if(!json.ok) throw new Error(json.error || 'API error');
   return json.data;
 }
 async function apiPost(action, payload){
   const tok = _TOKEN;
   const json = await _fetchApiJson(action, API_URL, { method:'POST', body: JSON.stringify({ action, payload, token: tok }) });
-  if(json.code === 'INVALID_TOKEN'){ _logInvalidTokenDebug(action, json); if(tok===_TOKEN) _handleExpiry(); throw new Error('請重新登入'); }
+  if(json.code === 'INVALID_TOKEN'){ _logInvalidTokenDebug(action, json, tok); if(tok===_TOKEN) _handleExpiry(); throw new Error('請重新登入'); }
   if(!json.ok) throw new Error(json.error || 'API error');
   return json.data;
 }
