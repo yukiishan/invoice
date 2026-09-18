@@ -436,6 +436,31 @@
       問題，跟登入時間、伺服器端都無關），還是別的原因。下次再遇到，麻煩
       把主控台完整截圖給我（尤其是新的這行 token 前 8 碼／是否仍為目前
       _TOKEN 的資訊），才能確定接下來要往前端還是後端查
+
+  v1.46  2026-09-18
+    - 承上，這次真的抓到完整證據了：使用者提供的截圖裡，前端記錄「送出的
+      token=59f6e9c4…，是否仍為目前 _TOKEN=true」（代表送出的確實是剛登入
+      拿到、目前仍有效的 token），但展開伺服器回傳的 debug 物件後，內容是
+      reason:"empty_token"、receivedToken:""——伺服器實際收到的 token 參數
+      是空字串。也就是說，使用者的登入沒有過期、前端狀態也完全正常，問題
+      出在這次 HTTP 請求本身：token 在傳輸過程中被弄丟了（同一時間也觀察
+      到 getAll 收到 Google 的 HTML 錯誤頁面、script.googleusercontent.com
+      404，研判是 Google Apps Script /exec 網址背後的轉導機制剛好不穩，
+      把 POST 本文搞丟，等同伺服器完全沒收到 token）。
+      既然問題不是真的登入過期，就不應該把使用者踢出登入——這裡改成：只有
+      在「這次確實送出了非空的 token」且「伺服器回傳的 debug.reason 剛好
+      是 empty_token」時，才視為這種暫時性的傳輸異常，重新送出整個請求
+      （不只是重試 fetch，是連同 saveInvoices／getAll 等業務邏輯一起重
+      來），最多重試 2 次（間隔 0.6 秒、1.2 秒），完全不會讓使用者看到被
+      踢出登入的畫面；重試幾次都一樣還是這個情況，或者是其他原因（真的
+      過期、找不到 token、或這次送出的 token 本身就是空的），才維持原本
+      邏輯（顯示訊息、強制登出），不會掩蓋真正的登入過期情況。用 Playwright
+      模擬了 4 種情境驗證過：完全複製使用者截圖的狀況（送出有效 token 卻
+      收到 empty_token，第 2 次重試就成功，使用者完全不會被踢出）、真的
+      過期的情況維持原本立即登出、送出的 token 本身就是空的情況也維持原本
+      立即登出（不會被這個新機制誤判掩蓋）、以及這種暫時性問題如果重試幾
+      次都沒恢復，最終還是會照原本邏輯登出（不會無限重試卡住）。這次純
+      前端修改，Code.gs 不用再更新
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -1325,19 +1350,51 @@ async function _fetchApiJson(action, url, opts){
   }
   throw lastErr;
 }
+// v1.46：實際截圖抓到的證據——使用者這端送出的明明是剛登入拿到、目前仍
+// 有效的 token（前端記錄「送出的 token=xxx，是否仍為目前 _TOKEN=true」），
+// 但伺服器端 verifyToken() 收到的 debug 卻顯示 reason:'empty_token'、
+// receivedToken:''，也就是伺服器實際收到的 token 參數是空字串。這不是
+// 使用者的登入真的過期或前端狀態壞掉，而是這次 HTTP 請求本身在傳輸過程
+// （很可能是 Google Apps Script /exec 網址背後的轉導機制剛好不穩，同一
+// 時間也觀察到 getAll 收到 HTML 錯誤頁面、script.googleusercontent.com
+// 404）中，把 POST 本文（包含 token）弄丟了，导致伺服器那端等同於完全
+// 沒收到 token。這種情況重新整個請求送一次，通常就會恢復正常，不應該
+// 直接把使用者踢出登入。
+// 判斷方式：只有在「這次確實送出了非空的 token（tok 是真的有值）」且
+// 「伺服器回傳的 debug.reason 剛好是 empty_token」時，才視為這種暫時性
+// 的傳輸異常，重新送出整個請求重試（不只是重試 fetch 這一層，是連同
+// 業務邏輯一起重來）；重試幾次都一樣還是這個情況，才回到原本的邏輯
+// （顯示訊息、強制登出）。其他原因（真的過期／找不到 token、或這次送出
+// 的 tok 本身就是空的）維持原本行為，不做這種重試，避免掩蓋真正的登入
+// 過期情況。
+const PHANTOM_TOKEN_RETRY_DELAYS = [600, 1200];
+function _isPhantomEmptyToken(json, tok){
+  return !!tok && !!json.debug && json.debug.reason === 'empty_token';
+}
+async function _apiCall(action, tok, doFetch){
+  for(let attempt = 0; ; attempt++){
+    const json = await doFetch();
+    if(json.code === 'INVALID_TOKEN'){
+      if(_isPhantomEmptyToken(json, tok) && attempt < PHANTOM_TOKEN_RETRY_DELAYS.length){
+        console.warn('[Auth] ' + action + ' 疑似伺服器端暫時遺失了這次請求的 token（送出的其實是有效 token=' + tok.slice(0,8) + '…，伺服器卻收到空字串），' + PHANTOM_TOKEN_RETRY_DELAYS[attempt] + 'ms 後重新送出整個請求重試，暫不強制登出…');
+        await _sleep(PHANTOM_TOKEN_RETRY_DELAYS[attempt]);
+        continue;
+      }
+      _logInvalidTokenDebug(action, json, tok);
+      if(tok===_TOKEN) _handleExpiry();
+      throw new Error('請重新登入');
+    }
+    if(!json.ok) throw new Error(json.error || 'API error');
+    return json.data;
+  }
+}
 async function apiGet(action){
   const tok = _TOKEN;
-  const json = await _fetchApiJson(action, `${API_URL}?action=${encodeURIComponent(action)}&token=${encodeURIComponent(tok)}`);
-  if(json.code === 'INVALID_TOKEN'){ _logInvalidTokenDebug(action, json, tok); if(tok===_TOKEN) _handleExpiry(); throw new Error('請重新登入'); }
-  if(!json.ok) throw new Error(json.error || 'API error');
-  return json.data;
+  return _apiCall(action, tok, () => _fetchApiJson(action, `${API_URL}?action=${encodeURIComponent(action)}&token=${encodeURIComponent(tok)}`));
 }
 async function apiPost(action, payload){
   const tok = _TOKEN;
-  const json = await _fetchApiJson(action, API_URL, { method:'POST', body: JSON.stringify({ action, payload, token: tok }) });
-  if(json.code === 'INVALID_TOKEN'){ _logInvalidTokenDebug(action, json, tok); if(tok===_TOKEN) _handleExpiry(); throw new Error('請重新登入'); }
-  if(!json.ok) throw new Error(json.error || 'API error');
-  return json.data;
+  return _apiCall(action, tok, () => _fetchApiJson(action, API_URL, { method:'POST', body: JSON.stringify({ action, payload, token: tok }) }));
 }
 
 // ══ LOCAL CACHE ═══════════════════════════════════
