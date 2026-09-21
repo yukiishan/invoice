@@ -461,6 +461,17 @@
       立即登出（不會被這個新機制誤判掩蓋）、以及這種暫時性問題如果重試幾
       次都沒恢復，最終還是會照原本邏輯登出（不會無限重試卡住）。這次純
       前端修改，Code.gs 不用再更新
+
+  v1.47  2026-09-21
+    - 外幣（calcFX）的預計付款日計算，原本只抓「驗收日＋付款天數」後最近
+      的 14 或 28 日，沒有像台幣（calcTWD）一樣檢查那天是不是假日／週末，
+      如果剛好卡到就直接維持那天，不會順延。這次補上跟台幣一致的順延邏輯
+      （呼叫同一個 nextBiz()），遇到假日或週末就順延至次一營業日；計算
+      提示文字也比照台幣，有順延時會多顯示「→ 假日順延至 XX」。用 Node/
+      Playwright 驗證過：沒卡到假日的情況跟修正前結果完全一致（不影響既有
+      資料）、剛好卡到手動設定的國定假日會正確順延、單純卡到週六日（不需
+      要另外設定假日）也會自動順延，以及既有的 calcPayDateDirect()（其他
+      功能如假日異動後的批次重算都是共用這個函式）也同步套用新邏輯
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -1647,7 +1658,9 @@ function calcFX(finish, paydays){
   const calcDate = addDays(fd, pd);
   let cand = new Date(calcDate);
   for(let i=0;i<60;i++){ const d=cand.getDate(); if(d===14||d===28) break; cand.setDate(cand.getDate()+1); }
-  return { paydate: fmt(cand), hint: `外幣：驗收日 + ${pd}天 = ${fmt(calcDate)} → 最近付款日（14/28日）${fmt(cand)}` };
+  const payDay = nextBiz(cand);
+  const adj = fmt(payDay) !== fmt(cand) ? ` → 假日順延至 ${fmt(payDay)}` : '';
+  return { paydate: fmt(payDay), hint: `外幣：驗收日 + ${pd}天 = ${fmt(calcDate)} → 最近付款日（14/28日）${fmt(cand)}${adj}` };
 }
 function calcPayDate(){
   const finish=getVal('f-finish'), currency=getVal('f-currency'), paydays=getVal('f-paydays');
