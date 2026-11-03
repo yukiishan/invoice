@@ -472,6 +472,22 @@
       資料）、剛好卡到手動設定的國定假日會正確順延、單純卡到週六日（不需
       要另外設定假日）也會自動順延，以及既有的 calcPayDateDirect()（其他
       功能如假日異動後的批次重算都是共用這個函式）也同步套用新邏輯
+
+  v1.48  2026-11-03
+    - 修正發票字軌彈窗的 Tab 順序：原本「起始年月」「結束年月」「字軌」
+      「新增」「儲存」這幾個欄位的 tabindex 是 1～5，跟「新增發票」分頁
+      的代碼／發票日期／發票號碼／PO／儲存發票（同樣是 tabindex 1～5）
+      剛好撞號。平常沒事，但如果開啟發票字軌視窗時，背景剛好停留在「新增
+      發票」分頁（該分頁欄位仍在畫面上、沒有被隱藏），兩邊 tabindex 數值
+      相同時瀏覽器會改用畫面上的先後順序決定 Tab 走向，而「新增發票」的
+      發票日期欄位剛好排在「結束年月」前面，就會變成：起始年月打完兩段
+      （年、月）按 Tab，不會進到結束年月，而是跳到背景的發票日期欄位。
+      改成把發票字軌這幾個欄位的 tabindex 全部換成 101～105（跟頁面上其他
+      地方用的 1～6 完全不會撞號），這樣不管背景停留在哪個分頁，Tab 順序
+      都會固定是：起始年月（年→月）→ 結束年月（年→月）→ 字軌 → 新增 →
+      儲存，不會再跳出視窗外。用 Playwright 模擬「背景停在新增發票分頁時
+      開啟發票字軌視窗」這個情境驗證過修正前會重現你說的跳到發票日期的
+      問題，修正後完整 Tab 順序符合預期
   ════════════════════════════════════════════════════════════════
 -->
 <meta charset="UTF-8">
@@ -1137,19 +1153,19 @@ tbody td{padding:5px 7px;vertical-align:middle}
     <div style="display:grid;grid-template-columns:90px 90px 70px 1fr;gap:6px;margin-bottom:10px;align-items:flex-end">
       <div class="fg">
         <label>起始年月</label>
-        <input type="month" id="trk-from" tabindex="1" style="font-size:11px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:inherit;width:100%">
+        <input type="month" id="trk-from" tabindex="101" style="font-size:11px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:inherit;width:100%">
       </div>
       <div class="fg">
         <label>結束年月</label>
-        <input type="month" id="trk-to" tabindex="2" style="font-size:11px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:inherit;width:100%">
+        <input type="month" id="trk-to" tabindex="102" style="font-size:11px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:inherit;width:100%">
       </div>
       <div class="fg">
         <label>字軌（2碼）</label>
-        <input type="text" id="trk-code" tabindex="3" maxlength="2" placeholder="AA"
+        <input type="text" id="trk-code" tabindex="103" maxlength="2" placeholder="AA"
           style="font-size:12px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sf2);color:var(--tx);font-family:'Courier New',monospace;width:100%;text-transform:uppercase"
           oninput="upperKeepCursor(this)">
       </div>
-      <button class="btn primary sm" id="trk-add-btn" tabindex="4" onclick="addTrack()" style="align-self:flex-end">新增</button>
+      <button class="btn primary sm" id="trk-add-btn" tabindex="104" onclick="addTrack()" style="align-self:flex-end">新增</button>
     </div>
     <div style="font-size:10px;font-weight:700;color:var(--tx3);margin-bottom:5px;text-transform:uppercase">
       字軌清單（<span id="trk-count">0</span> 筆）
@@ -1159,7 +1175,7 @@ tbody td{padding:5px 7px;vertical-align:middle}
     <div id="trk-list" style="display:flex;flex-direction:column;gap:2px;max-height:280px;overflow-y:auto;border:1px solid var(--bd);border-radius:var(--r);padding:5px;margin-bottom:10px"></div>
     <div class="mkft">
       <button class="btn" id="trk-cancel-btn" tabindex="-1" onclick="closeTrackModal()">取消</button>
-      <button class="btn primary" id="trk-save-btn" tabindex="5" onclick="saveTracksCloud();closeTrackModal()">✓ 儲存</button>
+      <button class="btn primary" id="trk-save-btn" tabindex="105" onclick="saveTracksCloud();closeTrackModal()">✓ 儲存</button>
     </div>
   </div>
 </div>
